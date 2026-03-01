@@ -97,42 +97,6 @@ async function initDB() {
 }
 initDB();
 
-// Đảm bảo thư mục data tồn tại
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-// Dữ liệu mẫu mặc định
-const DEFAULT_DATA = {
-  investments: [
-    {
-      id: '1',
-      type: 'stock',
-      symbol: 'FPT',
-      name: 'FPT Corporation',
-      quantity: 8200,
-      purchasePrice: 99000,
-      purchaseDate: '2024-01-15',
-      notes: ''
-    },
-    {
-      id: '2',
-      type: 'gold',
-      symbol: 'SJC',
-      name: 'Vàng SJC 1 Lượng',
-      quantity: 14,
-      purchasePrice: 187800000,
-      purchaseDate: '2024-03-01',
-      notes: '14 cây vàng SJC'
-    }
-  ]
-};
-
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
-}
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
 // ────────────────────────────────────────────────
 // Hàm helper: Fetch với timeout (dùng built-in fetch của Node 18+)
 // ────────────────────────────────────────────────
