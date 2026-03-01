@@ -716,16 +716,21 @@ function showToast(msg, type = 'info') {
   toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3500);
 }
 
-// Bind sự kiện cho nút refresh trên mobile
+// Nút refresh trên mobile bottom nav
 const mobileRefBtn = document.getElementById('mobileRefreshBtn');
 if (mobileRefBtn) {
   mobileRefBtn.addEventListener('click', async () => {
-    mobileRefBtn.querySelector('i').classList.add('fa-spin');
-    await fetchPrices();
-    renderSummary();
-    renderCharts();
-    renderInvestments();
-    mobileRefBtn.querySelector('i').classList.remove('fa-spin');
-    showToast('Đã cập nhật giá mới nhất');
+    const icon = mobileRefBtn.querySelector('i');
+    icon.style.transition = 'transform .7s linear';
+    icon.style.animation = 'spin .7s linear infinite';
+    try {
+      await fetchPrices();
+      renderSummary();
+      renderCharts();
+      renderInvestments();
+      showToast('✅ Đã cập nhật giá mới nhất', 'success');
+    } finally {
+      icon.style.animation = '';
+    }
   });
 }
