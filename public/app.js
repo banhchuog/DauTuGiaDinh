@@ -68,7 +68,7 @@ async function refreshPrices() {
   const refreshBtn = document.getElementById('refreshBtn');
   const refreshIcon = document.getElementById('refreshIcon');
   refreshBtn.classList.add('loading');
-  refreshIcon.classList.add('fa-spin');
+  refreshIcon.classList.add('svg-spin');
   showToast('Đang cập nhật giá thị trường...', 'info');
 
   try {
@@ -108,7 +108,7 @@ async function refreshPrices() {
   } finally {
     isRefreshing = false;
     refreshBtn.classList.remove('loading');
-    refreshIcon.classList.remove('fa-spin');
+    refreshIcon.classList.remove('svg-spin');
   }
 }
 
@@ -359,7 +359,7 @@ function buildInvestCard(inv) {
       <div class="ic-header">
         <span class="ic-symbol">${inv.symbol}</span>
         <span class="ic-badge ${badgeClass}">${typeMap[inv.type] || inv.type}</span>
-        ${inv.notes ? `<span style="font-size:11px;color:var(--text-3)">📝 ${inv.notes}</span>` : ''}
+        ${inv.notes ? `<span class="ic-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${inv.notes}</span>` : ''}
       </div>
       <div class="ic-name">${inv.name || ''}</div>
       <div class="ic-qty-row">
@@ -405,10 +405,10 @@ function buildInvestCard(inv) {
     <!-- Actions -->
     <div class="ic-actions">
       <button class="action-btn edit" onclick="openEditModal('${inv.id}')" title="Sửa">
-        <i class="fas fa-pen"></i>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
       <button class="action-btn del" onclick="openDeleteModal('${inv.id}')" title="Xóa">
-        <i class="fas fa-trash"></i>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
       </button>
     </div>
   </div>`;
@@ -692,11 +692,11 @@ function formatDate(str) {
 }
 
 function typeIcon(type, symbol) {
-  if (type === 'gold')   return '🥇';
-  if (type === 'crypto') return '₿';
-  if (type === 'other')  return '📦';
-  // Stock: hiển thị 3 ký tự đầu
-  return (symbol || 'STK').substring(0, 4);
+  if (type === 'gold') return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="10" rx="2"/><path d="M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>`;
+  if (type === 'crypto') return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.767 19.089c4.924.868 6.14-6.025 1.216-6.894m-1.216 6.894L5.86 18.047m5.908 1.042-.347 1.97m1.563-8.864c4.924.869 6.14-6.025 1.215-6.893m-1.215 6.893-3.94-.694m5.155-6.2L8.29 4.26m5.908 1.042.348-1.97M7.48 20.364l3.126-17.727"/></svg>`;
+  if (type === 'other') return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
+  // Stock
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`;
 }
 
 function setEl(id, html) {
@@ -720,9 +720,8 @@ function showToast(msg, type = 'info') {
 const mobileRefBtn = document.getElementById('mobileRefreshBtn');
 if (mobileRefBtn) {
   mobileRefBtn.addEventListener('click', async () => {
-    const icon = mobileRefBtn.querySelector('i');
-    icon.style.transition = 'transform .7s linear';
-    icon.style.animation = 'spin .7s linear infinite';
+    const icon = mobileRefBtn.querySelector('svg');
+    icon.classList.add('svg-spin');
     try {
       await fetchPrices();
       renderSummary();
@@ -730,7 +729,7 @@ if (mobileRefBtn) {
       renderInvestments();
       showToast('✅ Đã cập nhật giá mới nhất', 'success');
     } finally {
-      icon.style.animation = '';
+      icon.classList.remove('svg-spin');
     }
   });
 }

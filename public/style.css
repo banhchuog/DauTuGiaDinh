@@ -167,11 +167,28 @@ a { text-decoration: none; color: inherit; }
   border-color: var(--blue);
 }
 
-.btn-refresh.loading i {
+.btn-refresh.loading i,
+.btn-refresh.loading svg {
   animation: spin .7s linear infinite;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* SVG icon sizing – dùng khắp nơi */
+.summary-icon svg { width: 22px; height: 22px; stroke-width: 2; flex-shrink: 0; }
+.ic-icon svg      { width: 22px; height: 22px; stroke-width: 2; }
+.card-title svg   { width: 16px; height: 16px; vertical-align: middle; margin-bottom: 1px; }
+.nav-link svg     { width: 20px; height: 20px; flex-shrink: 0; }
+.modal-close svg  { width: 18px; height: 18px; }
+.type-btn svg     { width: 15px; height: 15px; vertical-align: middle; }
+.action-btn svg   { width: 14px; height: 14px; }
+.btn svg          { width: 15px; height: 15px; vertical-align: middle; flex-shrink: 0; }
+.btn-refresh svg  { width: 15px; height: 15px; }
+.update-info svg  { width: 13px; height: 13px; opacity: .6; }
+.ic-notes         { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3); }
+
+/* Spin class cho SVG */
+.svg-spin { animation: spin .7s linear infinite; }
 
 /* ─────────────────────────────────────────────────────────
    MAIN CONTENT
@@ -179,6 +196,8 @@ a { text-decoration: none; color: inherit; }
 .main {
   flex: 1;
   min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 28px;
   display: flex;
   flex-direction: column;
@@ -288,6 +307,7 @@ a { text-decoration: none; color: inherit; }
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+  width: 100%;
 }
 
 .summary-card {
@@ -1046,12 +1066,13 @@ a { text-decoration: none; color: inherit; }
     transition: color .15s;
   }
   .nav-link i { font-size: 20px; width: auto; }
+  .nav-link svg { width: 20px; height: 20px; }
   .nav-link span { font-size: 10px; }
   .nav-link.active, .nav-link:hover { color: var(--blue); background: transparent; }
-  .refresh-link i, .refresh-link:hover i { color: var(--gold) !important; }
+  .refresh-link svg, .refresh-link:hover svg { color: var(--gold) !important; }
 
   /* ── MAIN ── */
-  .main { padding: 14px 12px 72px; gap: 14px; }
+  .main { padding: 12px 12px 72px; gap: 14px; overflow-x: hidden; width: 100%; }
 
   /* ── TOPBAR ── */
   .topbar {
@@ -1069,11 +1090,13 @@ a { text-decoration: none; color: inherit; }
   #addBtn span { display: none; }
 
   /* ── SUMMARY CARDS ── */
-  .summary-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .summary-card { padding: 14px 12px; gap: 10px; }
-  .summary-icon { width: 36px; height: 36px; font-size: 15px; border-radius: 10px; }
+  .summary-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; }
+  .summary-card { padding: 12px 10px; gap: 8px; min-width: 0; overflow: hidden; }
+  .summary-icon { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; }
+  .summary-icon svg { width: 18px; height: 18px; }
+  .summary-body { min-width: 0; overflow: hidden; }
   .summary-label { font-size: 10px; }
-  .summary-value { font-size: 16px; }
+  .summary-value { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ── CHARTS ── */
   .charts-grid { gap: 12px; }

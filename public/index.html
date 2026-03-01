@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -27,23 +27,23 @@
       <nav class="sidebar-nav">
         <div class="nav-section-label">MENU</div>
         <a class="nav-link active" href="#">
-          <i class="fas fa-chart-pie"></i><span>Tổng quan</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Tổng quan</span>
         </a>
         <a class="nav-link" href="#investments-section">
-          <i class="fas fa-list-ul"></i><span>Danh mục</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span>Danh mục</span>
         </a>
         <button class="nav-link refresh-link" id="mobileRefreshBtn">
-          <i class="fas fa-sync-alt"></i><span>Cập nhật</span>
+          <svg id="mobileRefIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>Cập nhật</span>
         </button>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="update-info">
-          <i class="fas fa-clock"></i>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <span id="lastUpdated">Chưa cập nhật</span>
         </div>
         <button id="refreshBtn" class="btn-refresh">
-          <i class="fas fa-sync-alt" id="refreshIcon"></i>
+          <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Cập nhật giá
         </button>
       </div>
@@ -59,35 +59,35 @@
           <p class="page-date" id="pageDate"></p>
         </div>
         <button class="btn btn-primary" id="addBtn">
-          <i class="fas fa-plus"></i><span> Thêm đầu tư</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span> Thêm đầu tư</span>
         </button>
       </header>
 
       <!-- Summary Cards -->
       <section class="summary-grid">
         <div class="card summary-card" id="card-total">
-          <div class="summary-icon icon-blue"><i class="fas fa-wallet"></i></div>
+          <div class="summary-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V22H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M22 12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v0a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2z"/></svg></div>
           <div class="summary-body">
             <p class="summary-label">Giá trị hiện tại</p>
             <p class="summary-value" id="totalValue"><span class="skeleton">──────────</span></p>
           </div>
         </div>
         <div class="card summary-card">
-          <div class="summary-icon icon-indigo"><i class="fas fa-hand-holding-dollar"></i></div>
+          <div class="summary-icon icon-indigo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg></div>
           <div class="summary-body">
             <p class="summary-label">Tổng vốn đầu tư</p>
             <p class="summary-value" id="totalCost"><span class="skeleton">──────────</span></p>
           </div>
         </div>
         <div class="card summary-card">
-          <div class="summary-icon" id="pnlIcon"><i class="fas fa-chart-line" id="pnlIconI"></i></div>
+          <div class="summary-icon" id="pnlIcon"><svg id="pnlIconI" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></div>
           <div class="summary-body">
             <p class="summary-label">Lời / Lỗ</p>
             <p class="summary-value" id="totalPnL"><span class="skeleton">──────────</span></p>
           </div>
         </div>
         <div class="card summary-card">
-          <div class="summary-icon" id="pctIcon"><i class="fas fa-percent" id="pctIconI"></i></div>
+          <div class="summary-icon" id="pctIcon"><svg id="pctIconI" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
           <div class="summary-body">
             <p class="summary-label">Tỷ lệ Lời / Lỗ</p>
             <p class="summary-value" id="totalPnLPct"><span class="skeleton">──────────</span></p>
@@ -98,7 +98,7 @@
       <!-- Charts Row -->
       <section class="charts-grid">
         <div class="card chart-card">
-          <h3 class="card-title"><i class="fas fa-chart-donut"></i> Phân bổ danh mục</h3>
+          <h3 class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> Phân bổ danh mục</h3>
           <div class="doughnut-wrap">
             <canvas id="allocationChart"></canvas>
             <div class="doughnut-center" id="doughnutCenter">
@@ -110,7 +110,7 @@
         </div>
 
         <div class="card perf-card">
-          <h3 class="card-title"><i class="fas fa-trophy"></i> Hiệu suất từng danh mục</h3>
+          <h3 class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17 12 22 9.5 17"/><path d="M6.17 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2.17"/><path d="M18 9V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4"/><circle cx="12" cy="14" r="2"/></svg> Hiệu suất từng danh mục</h3>
           <div id="perfList" class="perf-list">
             <div class="empty-perf">Đang tải...</div>
           </div>
@@ -120,7 +120,7 @@
       <!-- Investments Table -->
       <section class="card investments-section" id="investments-section">
         <div class="section-header">
-          <h3 class="card-title"><i class="fas fa-briefcase"></i> Chi tiết danh mục</h3>
+          <h3 class="card-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> Chi tiết danh mục</h3>
           <div class="filter-tabs" id="filterTabs">
             <button class="filter-tab active" data-filter="all">Tất cả</button>
             <button class="filter-tab" data-filter="stock">Cổ phiếu</button>
@@ -151,7 +151,7 @@
     <div class="modal">
       <div class="modal-header">
         <h2 id="modalTitle">Thêm đầu tư mới</h2>
-        <button class="modal-close" id="closeModal"><i class="fas fa-times"></i></button>
+        <button class="modal-close" id="closeModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         <form id="investForm" autocomplete="off">
@@ -162,16 +162,16 @@
             <label class="form-label">Loại đầu tư</label>
             <div class="type-selector" id="typeSelector">
               <button type="button" class="type-btn active" data-type="stock">
-                <i class="fas fa-chart-line"></i> Cổ phiếu
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> Cổ phiếu
               </button>
               <button type="button" class="type-btn" data-type="gold">
-                <i class="fas fa-coins"></i> Vàng
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="10" rx="2"/><path d="M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg> Vàng
               </button>
               <button type="button" class="type-btn" data-type="crypto">
-                <i class="fab fa-bitcoin"></i> Crypto
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.767 19.089c4.924.868 6.14-6.025 1.216-6.894m-1.216 6.894L5.86 18.047m5.908 1.042-.347 1.97m1.563-8.864c4.924.869 6.14-6.025 1.215-6.893m-1.215 6.893-3.94-.694m5.155-6.2L8.29 4.26m5.908 1.042.348-1.97M7.48 20.364l3.126-17.727"/></svg> Crypto
               </button>
               <button type="button" class="type-btn" data-type="other">
-                <i class="fas fa-box"></i> Khác
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> Khác
               </button>
             </div>
           </div>
@@ -245,7 +245,7 @@
       <div class="modal-footer">
         <button class="btn btn-ghost" id="cancelModal">Hủy</button>
         <button class="btn btn-primary" id="saveBtn">
-          <i class="fas fa-save"></i> Lưu
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Lưu
         </button>
       </div>
     </div>
@@ -256,7 +256,7 @@
     <div class="modal modal-sm">
       <div class="modal-header">
         <h2>Xác nhận xóa</h2>
-        <button class="modal-close" id="closeDelModal"><i class="fas fa-times"></i></button>
+        <button class="modal-close" id="closeDelModal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="del-icon">🗑️</div>
@@ -264,7 +264,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" id="cancelDel">Hủy</button>
-        <button class="btn btn-danger" id="confirmDel"><i class="fas fa-trash"></i> Xóa</button>
+        <button class="btn btn-danger" id="confirmDel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg> Xóa</button>
       </div>
     </div>
   </div>
