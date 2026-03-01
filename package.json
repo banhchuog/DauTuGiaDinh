@@ -1,0 +1,14 @@
+{
+  "name": "portfolio-web",
+  "version": "1.0.0",
+  "description": "Theo dõi danh mục đầu tư cá nhân - Cổ phiếu & Vàng Việt Nam",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2"
+  }
+}

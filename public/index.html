@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💼 Danh Mục Đầu Tư Cá Nhân</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">💼</div>
+        <div class="brand-text">
+          <span class="brand-name">Portfolio</span>
+          <span class="brand-sub">Theo dõi đầu tư</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">MENU</div>
+        <a class="nav-link active" href="#">
+          <i class="fas fa-chart-pie"></i><span>Tổng quan</span>
+        </a>
+        <a class="nav-link" href="#investments-section">
+          <i class="fas fa-list-ul"></i><span>Danh mục</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="update-info">
+          <i class="fas fa-clock"></i>
+          <span id="lastUpdated">Chưa cập nhật</span>
+        </div>
+        <button id="refreshBtn" class="btn-refresh">
+          <i class="fas fa-sync-alt" id="refreshIcon"></i>
+          Cập nhật giá
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── MAIN ── -->
+    <main class="main">
+
+      <!-- Header -->
+      <header class="topbar">
+        <button class="mobile-refresh-btn" id="mobileRefreshBtn" style="display:none"><i class="fas fa-sync-alt"></i></button>
+        <div class="topbar-left">
+          <h1 class="page-title">Danh Mục Đầu Tư</h1>
+          <p class="page-date" id="pageDate"></p>
+        </div>
+        <button class="btn btn-primary" id="addBtn">
+          <i class="fas fa-plus"></i> Thêm đầu tư
+        </button>
+      </header>
+
+      <!-- Summary Cards -->
+      <section class="summary-grid">
+        <div class="card summary-card" id="card-total">
+          <div class="summary-icon icon-blue"><i class="fas fa-wallet"></i></div>
+          <div class="summary-body">
+            <p class="summary-label">Giá trị hiện tại</p>
+            <p class="summary-value" id="totalValue"><span class="skeleton">──────────</span></p>
+          </div>
+        </div>
+        <div class="card summary-card">
+          <div class="summary-icon icon-indigo"><i class="fas fa-hand-holding-dollar"></i></div>
+          <div class="summary-body">
+            <p class="summary-label">Tổng vốn đầu tư</p>
+            <p class="summary-value" id="totalCost"><span class="skeleton">──────────</span></p>
+          </div>
+        </div>
+        <div class="card summary-card">
+          <div class="summary-icon" id="pnlIcon"><i class="fas fa-chart-line" id="pnlIconI"></i></div>
+          <div class="summary-body">
+            <p class="summary-label">Lời / Lỗ</p>
+            <p class="summary-value" id="totalPnL"><span class="skeleton">──────────</span></p>
+          </div>
+        </div>
+        <div class="card summary-card">
+          <div class="summary-icon" id="pctIcon"><i class="fas fa-percent" id="pctIconI"></i></div>
+          <div class="summary-body">
+            <p class="summary-label">Tỷ lệ Lời / Lỗ</p>
+            <p class="summary-value" id="totalPnLPct"><span class="skeleton">──────────</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts Row -->
+      <section class="charts-grid">
+        <div class="card chart-card">
+          <h3 class="card-title"><i class="fas fa-chart-donut"></i> Phân bổ danh mục</h3>
+          <div class="doughnut-wrap">
+            <canvas id="allocationChart"></canvas>
+            <div class="doughnut-center" id="doughnutCenter">
+              <span class="dc-label">Tổng</span>
+              <span class="dc-value" id="doughnutTotal">--</span>
+            </div>
+          </div>
+          <div id="chartLegend" class="chart-legend"></div>
+        </div>
+
+        <div class="card perf-card">
+          <h3 class="card-title"><i class="fas fa-trophy"></i> Hiệu suất từng danh mục</h3>
+          <div id="perfList" class="perf-list">
+            <div class="empty-perf">Đang tải...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Investments Table -->
+      <section class="card investments-section" id="investments-section">
+        <div class="section-header">
+          <h3 class="card-title"><i class="fas fa-briefcase"></i> Chi tiết danh mục</h3>
+          <div class="filter-tabs" id="filterTabs">
+            <button class="filter-tab active" data-filter="all">Tất cả</button>
+            <button class="filter-tab" data-filter="stock">Cổ phiếu</button>
+            <button class="filter-tab" data-filter="gold">Vàng</button>
+            <button class="filter-tab" data-filter="crypto">Crypto</button>
+            <button class="filter-tab" data-filter="other">Khác</button>
+          </div>
+        </div>
+
+        <div id="loadingState" class="loading-placeholder">
+          <div class="spinner"></div>
+          <p>Đang tải danh mục...</p>
+        </div>
+
+        <div id="investmentsList" class="investments-list" style="display:none"></div>
+
+        <div id="emptyState" class="empty-state" style="display:none">
+          <div class="empty-icon">📂</div>
+          <p>Chưa có đầu tư nào. <button class="link-btn" onclick="openAddModal()">Thêm ngay</button></p>
+        </div>
+      </section>
+
+    </main>
+  </div><!-- .app-layout -->
+
+  <!-- ══════════════ MODAL ADD/EDIT ══════════════ -->
+  <div id="investModal" class="modal-backdrop" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Thêm đầu tư mới</h2>
+        <button class="modal-close" id="closeModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="investForm" autocomplete="off">
+          <input type="hidden" id="editId">
+
+          <!-- Loại đầu tư -->
+          <div class="form-group">
+            <label class="form-label">Loại đầu tư</label>
+            <div class="type-selector" id="typeSelector">
+              <button type="button" class="type-btn active" data-type="stock">
+                <i class="fas fa-chart-line"></i> Cổ phiếu
+              </button>
+              <button type="button" class="type-btn" data-type="gold">
+                <i class="fas fa-coins"></i> Vàng
+              </button>
+              <button type="button" class="type-btn" data-type="crypto">
+                <i class="fab fa-bitcoin"></i> Crypto
+              </button>
+              <button type="button" class="type-btn" data-type="other">
+                <i class="fas fa-box"></i> Khác
+              </button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <!-- Mã / Symbol -->
+            <div class="form-group">
+              <label class="form-label" id="lblSymbol">Mã cổ phiếu</label>
+              <div class="input-with-tag">
+                <input type="text" id="fSymbol" class="form-input" placeholder="VD: FPT, VNM, HPG"
+                       style="text-transform:uppercase" maxlength="20">
+                <span class="input-tag" id="symbolTag">STOCK</span>
+              </div>
+              <!-- Gold presets -->
+              <div id="goldPresets" class="presets" style="display:none">
+                <button type="button" class="preset active" data-val="SJC">SJC</button>
+                <button type="button" class="preset" data-val="DOJI">DOJI</button>
+                <button type="button" class="preset" data-val="PNJ">PNJ</button>
+                <button type="button" class="preset" data-val="BTMC">BTMC</button>
+              </div>
+              <!-- Crypto presets -->
+              <div id="cryptoPresets" class="presets" style="display:none">
+                <button type="button" class="preset active" data-val="BTC">BTC</button>
+                <button type="button" class="preset" data-val="ETH">ETH</button>
+                <button type="button" class="preset" data-val="BNB">BNB</button>
+              </div>
+            </div>
+
+            <!-- Tên -->
+            <div class="form-group">
+              <label class="form-label" id="lblName">Tên đầu tư</label>
+              <input type="text" id="fName" class="form-input" placeholder="VD: FPT Corporation">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <!-- Số lượng -->
+            <div class="form-group">
+              <label class="form-label" id="lblQty">Số lượng (cổ phiếu)</label>
+              <input type="number" id="fQty" class="form-input" placeholder="VD: 1000" min="0" step="any">
+            </div>
+
+            <!-- Giá mua -->
+            <div class="form-group">
+              <label class="form-label" id="lblPrice">Giá mua vào (VND)</label>
+              <input type="number" id="fPrice" class="form-input" placeholder="VD: 99000" min="0" step="any">
+              <small class="form-hint" id="priceHint"></small>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Ngày mua</label>
+              <input type="date" id="fDate" class="form-input">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ghi chú</label>
+              <input type="text" id="fNotes" class="form-input" placeholder="Tùy chọn...">
+            </div>
+          </div>
+
+          <!-- Preview -->
+          <div class="invest-preview" id="investPreview">
+            <div class="preview-row">
+              <span>Tổng giá trị đầu tư:</span>
+              <strong id="previewTotal">0 ₫</strong>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="cancelModal">Hủy</button>
+        <button class="btn btn-primary" id="saveBtn">
+          <i class="fas fa-save"></i> Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL DELETE ══════════════ -->
+  <div id="delModal" class="modal-backdrop" style="display:none">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Xác nhận xóa</h2>
+        <button class="modal-close" id="closeDelModal"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="del-icon">🗑️</div>
+        <p>Bạn có chắc muốn xóa <strong id="delItemName"></strong> khỏi danh mục không?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="cancelDel">Hủy</button>
+        <button class="btn btn-danger" id="confirmDel"><i class="fas fa-trash"></i> Xóa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
