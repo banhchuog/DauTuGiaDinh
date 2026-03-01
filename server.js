@@ -5,8 +5,48 @@ const https = require('https');
 const http = require('http');
 require('dotenv').config();
 
+const { Pool } = require('pg');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.use(express.json()); // Đảm bảo parse req.body
+
+// ────────────────────────────────────────────────
+// Database connection (PostgreSQL)
+// ────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false // Yêu cầu SSL khi host trên mây như Railway
+});
+
+pool.on('error', (err) => {
+  console.error('[DB] Lỗi PostgreSQL bất ngờ:', err);
+});
+
+async function initDB() {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    // Tạo bảng với schema linh hoạt thay thế file JSON (một row cho toàn bộ data để dễ sync)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_portfolio (
+        id SERIAL PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Tạo bản ghi đầu tiên nếu rỗng
+    const res = await pool.query(`SELECT COUNT(*) FROM user_portfolio`);
+    if (res.rows[0].count == 0) {
+       await pool.query('INSERT INTO user_portfolio (data) VALUES ($1)', [JSON.stringify(DEFAULT_DATA)]);
+    }
+    console.log('[DATABASE] 🎉 PostgreSQL đã kết nối & cấu hình xong bảng `user_portfolio`!');
+  } catch (err) {
+    console.error('[DATABASE] Lỗi khởi tạo bảng:', err);
+  }
+}
+initDB();
+
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'portfolio.json');
 
@@ -292,9 +332,13 @@ async function getGoldPriceSJC() {
 // REST API Endpoints
 // ────────────────────────────────────────────────
 
-// Lấy toàn bộ danh mục
-app.get('/api/portfolio', (req, res) => {
+// Lấy toàn bộ danh mục (Ưu tiên DB Railway -> Fallback JSON)
+app.get('/api/portfolio', async (req, res) => {
   try {
+    if (process.env.DATABASE_URL) {
+      const dbRes = await pool.query('SELECT data FROM user_portfolio ORDER BY id DESC LIMIT 1');
+      if (dbRes.rows.length > 0) return res.json(dbRes.rows[0].data);
+    }
     const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     res.json(data);
   } catch (e) {
@@ -302,9 +346,14 @@ app.get('/api/portfolio', (req, res) => {
   }
 });
 
-// Lưu danh mục
-app.post('/api/portfolio', (req, res) => {
+// Lưu danh mục (Lưu vào DB Railway -> Backup vào JSON)
+app.post('/api/portfolio', async (req, res) => {
   try {
+    if (process.env.DATABASE_URL) {
+      // Vì là ứng dụng 1 người dùng, cập nhật luôn dòng đầu tiên 
+      await pool.query('UPDATE user_portfolio SET data = $1, updated_at = CURRENT_TIMESTAMP', [JSON.stringify(req.body)]);
+      // Mọi thứ thành công thì mới write sync xuống disk để dự phòng offline
+    }
     fs.writeFileSync(DATA_FILE, JSON.stringify(req.body, null, 2), 'utf8');
     res.json({ success: true });
   } catch (e) {
