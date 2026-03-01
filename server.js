@@ -9,24 +9,74 @@ const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(express.json()); // Đảm bảo parse req.body
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ────────────────────────────────────────────────
-// Database connection (PostgreSQL)
+// Dữ liệu cục bộ (JSON fallback khi không có DATABASE_URL)
+// ── Khai báo TRƯỚC initDB để tránh undefined ──
 // ────────────────────────────────────────────────
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false // Yêu cầu SSL khi host trên mây như Railway
-});
+const DATA_DIR = path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'portfolio.json');
 
-pool.on('error', (err) => {
-  console.error('[DB] Lỗi PostgreSQL bất ngờ:', err);
-});
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// Dữ liệu mẫu mặc định
+const DEFAULT_DATA = {
+  investments: [
+    {
+      id: '1',
+      type: 'stock',
+      symbol: 'FPT',
+      name: 'FPT Corporation',
+      quantity: 8200,
+      purchasePrice: 99000,
+      purchaseDate: '2024-01-15',
+      notes: ''
+    },
+    {
+      id: '2',
+      type: 'gold',
+      symbol: 'SJC',
+      name: 'Vàng SJC 1 Lượng',
+      quantity: 14,
+      purchasePrice: 187800000,
+      purchaseDate: '2024-03-01',
+      notes: '14 cây vàng SJC'
+    }
+  ]
+};
+
+if (!fs.existsSync(DATA_FILE)) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_DATA, null, 2), 'utf8');
+}
+
+// ────────────────────────────────────────────────
+// Database connection (PostgreSQL – Railway)
+// ────────────────────────────────────────────────
+let pool = null;
+
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false } // Bắt buộc cho Railway/Render
+  });
+
+  pool.on('error', (err) => {
+    console.error('[DB] ❌ Lỗi PostgreSQL bất ngờ:', err.message);
+  });
+}
 
 async function initDB() {
-  if (!process.env.DATABASE_URL) return;
+  if (!pool) {
+    console.log('[DATABASE] ⚠️  Không có DATABASE_URL → dùng file JSON cục bộ.');
+    return;
+  }
   try {
-    // Tạo bảng với schema linh hoạt thay thế file JSON (một row cho toàn bộ data để dễ sync)
+    // Kiểm tra kết nối
+    await pool.query('SELECT 1');
+    console.log('[DATABASE] ✅ Kết nối PostgreSQL thành công!');
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS user_portfolio (
         id SERIAL PRIMARY KEY,
@@ -34,21 +84,18 @@ async function initDB() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
-    // Tạo bản ghi đầu tiên nếu rỗng
-    const res = await pool.query(`SELECT COUNT(*) FROM user_portfolio`);
-    if (res.rows[0].count == 0) {
-       await pool.query('INSERT INTO user_portfolio (data) VALUES ($1)', [JSON.stringify(DEFAULT_DATA)]);
+
+    const check = await pool.query('SELECT COUNT(*) FROM user_portfolio');
+    if (parseInt(check.rows[0].count) === 0) {
+      await pool.query('INSERT INTO user_portfolio (data) VALUES ($1)', [JSON.stringify(DEFAULT_DATA)]);
+      console.log('[DATABASE] 📦 Đã tạo dữ liệu mặc định trong bảng user_portfolio.');
     }
-    console.log('[DATABASE] 🎉 PostgreSQL đã kết nối & cấu hình xong bảng `user_portfolio`!');
+    console.log('[DATABASE] 🎉 Database sẵn sàng!');
   } catch (err) {
-    console.error('[DATABASE] Lỗi khởi tạo bảng:', err);
+    console.error('[DATABASE] ❌ Lỗi khởi tạo:', err.message);
   }
 }
 initDB();
-
-const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'portfolio.json');
 
 // Đảm bảo thư mục data tồn tại
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -335,13 +382,14 @@ async function getGoldPriceSJC() {
 // Lấy toàn bộ danh mục (Ưu tiên DB Railway -> Fallback JSON)
 app.get('/api/portfolio', async (req, res) => {
   try {
-    if (process.env.DATABASE_URL) {
+    if (pool) {
       const dbRes = await pool.query('SELECT data FROM user_portfolio ORDER BY id DESC LIMIT 1');
       if (dbRes.rows.length > 0) return res.json(dbRes.rows[0].data);
     }
     const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     res.json(data);
   } catch (e) {
+    console.error('[API] GET /api/portfolio lỗi:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
@@ -349,15 +397,26 @@ app.get('/api/portfolio', async (req, res) => {
 // Lưu danh mục (Lưu vào DB Railway -> Backup vào JSON)
 app.post('/api/portfolio', async (req, res) => {
   try {
-    if (process.env.DATABASE_URL) {
-      // Vì là ứng dụng 1 người dùng, cập nhật luôn dòng đầu tiên 
+    if (pool) {
       await pool.query('UPDATE user_portfolio SET data = $1, updated_at = CURRENT_TIMESTAMP', [JSON.stringify(req.body)]);
-      // Mọi thứ thành công thì mới write sync xuống disk để dự phòng offline
     }
     fs.writeFileSync(DATA_FILE, JSON.stringify(req.body, null, 2), 'utf8');
     res.json({ success: true });
   } catch (e) {
+    console.error('[API] POST /api/portfolio lỗi:', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint kiểm tra tình trạng database
+app.get('/api/db-status', async (req, res) => {
+  if (!pool) return res.json({ connected: false, message: 'Không có DATABASE_URL, đang dùng JSON cục bộ.' });
+  try {
+    await pool.query('SELECT 1');
+    const count = await pool.query('SELECT COUNT(*) FROM user_portfolio');
+    res.json({ connected: true, rows: parseInt(count.rows[0].count), message: '✅ Database kết nối OK!' });
+  } catch (e) {
+    res.json({ connected: false, message: e.message });
   }
 });
 
