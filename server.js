@@ -252,21 +252,14 @@ async function fetchGoldEODHD() {
   const usdVnd = usdJson?.usd?.vnd;
   if (!usdVnd) throw new Error('Invalid USD/VND rate');
 
-  // 1 lượng (cây) = 37.5g; 1 troy oz = 31.1034768g
-  // Hệ số quy đổi 1 lượng = 37.5 / 31.1034768 ≈ 1.20565 troy oz
+  // 1 lượng (cây) VN = 37.5g ; 1 troy oz = 31.1034768g
+  // Giá thế giới theo cây (VND) + thêm flat 20 triệu đồng = giá SJC
+  const SJC_FLAT_PREMIUM = 20_000_000;
   const pricePerOzVnd = paxgUsd * usdVnd;
   const priceWorldPerLuongVnd = pricePerOzVnd * (37.5 / 31.1034768);
-  
-  // Vàng miếng SJC tại Việt Nam luôn có một độ chênh lệch (premium) rất cao so với giá thế giới.
-  // Dựa trên dữ liệu thực tế (PAXG 5278.11 USD/oz → SJC ~ 184.000.000 VNĐ),
-  // mức chênh lệch đang rơi vào khoảng 13.84%.
-  const sjcPremiumMultiplier = 1.1384; 
-  
-  // Tính toán giá bán ra và làm tròn đến bước giá 10.000 VNĐ
-  let finalPrice = priceWorldPerLuongVnd * sjcPremiumMultiplier;
-  finalPrice = Math.round(finalPrice / 100000) * 100000; // Làm tròn theo bước giá 100.000 VNĐ
+  let finalPrice = Math.round((priceWorldPerLuongVnd + SJC_FLAT_PREMIUM) / 100000) * 100000;
 
-  console.log(`[GOLD-EODHD] PAXG=$${paxgUsd} × ${usdVnd} = ${pricePerOzVnd.toLocaleString()} → Giá thế giới: ${Math.round(priceWorldPerLuongVnd).toLocaleString()} → Giá SJC bán ra: ${finalPrice.toLocaleString()}`);
+  console.log(`[GOLD-EODHD] PAXG=$${paxgUsd} × ${usdVnd} → 1 cây thế giới: ${Math.round(priceWorldPerLuongVnd).toLocaleString()} + 20tr = SJC: ${finalPrice.toLocaleString()}`);
   return {
     symbol: 'SJC',
     buyPrice: finalPrice - 2000000, // Thường SJC mua vào thấp hơn bán ra khoảng 2-3 triệu/lượng
@@ -291,13 +284,13 @@ async function fetchGoldFromCurrencyAPI() {
   const json = JSON.parse(res.data);
   const xauVnd = json?.xau?.vnd;
   if (!xauVnd || xauVnd < 1000000) throw new Error('Invalid XAU/VND rate');
-  // 1 troy oz = 31.1035g ; 1 lượng vàng VN = 3.75g
-  const pricePerLuong = (xauVnd / 31.1035) * 3.75;
-  // SJC thường cao hơn giá thế giới ~8%
-  const sjcPremium = 1.08;
-  const sellPrice = Math.round(pricePerLuong * sjcPremium / 100000) * 100000;
+  // 1 troy oz = 31.1035g ; 1 lượng vàng VN = 37.5g
+  // Giá thế giới theo cây (VND) + flat 20 triệu = giá SJC
+  const SJC_FLAT_PREMIUM = 20_000_000;
+  const pricePerLuong = xauVnd * (37.5 / 31.1035);
+  const sellPrice = Math.round((pricePerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
   const buyPrice  = sellPrice - 500000;
-  console.log(`[GOLD] XAU/VND=${xauVnd.toLocaleString()} → 1 lượng ≈ ${pricePerLuong.toLocaleString()} → SJC sell ≈ ${sellPrice.toLocaleString()}`);
+  console.log(`[GOLD] XAU/VND=${xauVnd.toLocaleString()} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
   return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), source: 'XAU/VND (World)', lastUpdated: new Date().toISOString() };
 }
 
@@ -317,12 +310,13 @@ async function fetchGoldFromYahooXAU() {
   const usdVnd  = usdJson?.usd?.vnd;
   if (!xauUsd || !usdVnd) throw new Error('No data');
   // xauUsd = USD/troy oz; usdVnd = VND per USD
+  // Giá thế giới theo cây (VND) + flat 20 triệu = giá SJC
+  const SJC_FLAT_PREMIUM = 20_000_000;
   const xauVnd = xauUsd * usdVnd;
-  const pricePerLuong = (xauVnd / 31.1035) * 3.75;
-  const sjcPremium = 1.08;
-  const sellPrice = Math.round(pricePerLuong * sjcPremium / 100000) * 100000;
+  const pricePerLuong = xauVnd * (37.5 / 31.1035);
+  const sellPrice = Math.round((pricePerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
   const buyPrice  = sellPrice - 500000;
-  console.log(`[GOLD] XAU=$${xauUsd} × ${usdVnd} = ${xauVnd.toLocaleString()} → SJC≈${sellPrice.toLocaleString()}`);
+  console.log(`[GOLD] XAU=$${xauUsd} × ${usdVnd} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
   return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), xauUsd, usdVnd, source: `XAUUSD $${xauUsd.toFixed(0)} × ${usdVnd.toFixed(0)}`, lastUpdated: new Date().toISOString() };
 }
 
