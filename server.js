@@ -238,11 +238,11 @@ async function fetchGoldEODHD() {
     throw new Error('No valid EODHD Token');
   }
 
-  // Lấy giá PAXG-USD.CC từ EODHD (1 PAXG = 1 troy oz vàng)
-  const xauRes = await httpGet(`https://eodhd.com/api/real-time/PAXG-USD.CC?api_token=${EODHD_API_TOKEN}&fmt=json`);
+  // Lấy giá XAUUSD.FOREX từ EODHD (đơn vị: USD/troy oz)
+  const xauRes = await httpGet(`https://eodhd.com/api/real-time/XAUUSD.FOREX?api_token=${EODHD_API_TOKEN}&fmt=json`);
   const xauJson = JSON.parse(xauRes.data);
-  const paxgUsd = typeof xauJson.close === 'number' ? xauJson.close : parseFloat(xauJson.close);
-  if (!paxgUsd || isNaN(paxgUsd)) throw new Error('Invalid PAXG-USD price from EODHD');
+  const xauUsd = typeof xauJson.close === 'number' ? xauJson.close : parseFloat(xauJson.close);
+  if (!xauUsd || isNaN(xauUsd) || xauUsd < 100) throw new Error(`Invalid XAUUSD price from EODHD: ${xauUsd}`);
 
   // Lấy USD/VND
   const usdRes = await httpGet('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', {
@@ -252,23 +252,23 @@ async function fetchGoldEODHD() {
   const usdVnd = usdJson?.usd?.vnd;
   if (!usdVnd) throw new Error('Invalid USD/VND rate');
 
-  // 1 lượng (cây) VN = 37.5g ; 1 troy oz = 31.1034768g
-  // Giá thế giới theo cây (VND) + thêm flat 20 triệu đồng = giá SJC
+  // 1 cây VN = 37.5g ; 1 troy oz = 31.1034768g
+  // Giá thế giới / cây (VND) + flat 20 triệu = giá SJC
   const SJC_FLAT_PREMIUM = 20_000_000;
-  const pricePerOzVnd = paxgUsd * usdVnd;
-  const priceWorldPerLuongVnd = pricePerOzVnd * (37.5 / 31.1034768);
-  let finalPrice = Math.round((priceWorldPerLuongVnd + SJC_FLAT_PREMIUM) / 100000) * 100000;
+  const xauVnd = xauUsd * usdVnd;
+  const priceWorldPerLuong = xauVnd * (37.5 / 31.1034768);
+  const finalPrice = Math.round((priceWorldPerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
 
-  console.log(`[GOLD-EODHD] PAXG=$${paxgUsd} × ${usdVnd} → 1 cây thế giới: ${Math.round(priceWorldPerLuongVnd).toLocaleString()} + 20tr = SJC: ${finalPrice.toLocaleString()}`);
+  console.log(`[GOLD-EODHD] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây TG: ${Math.round(priceWorldPerLuong).toLocaleString()} + 20tr = SJC: ${finalPrice.toLocaleString()}`);
   return {
     symbol: 'SJC',
-    buyPrice: finalPrice - 2000000, // Thường SJC mua vào thấp hơn bán ra khoảng 2-3 triệu/lượng
+    buyPrice: finalPrice - 2000000,
     sellPrice: finalPrice,
     price: finalPrice,
-    priceWorld: Math.round(priceWorldPerLuongVnd),
-    paxgUsd,
+    priceWorld: Math.round(priceWorldPerLuong),
+    xauUsd,
     usdVnd,
-    source: `EODHD PAXG-USD.CC`,
+    source: `EODHD XAUUSD $${xauUsd.toFixed(0)}`,
     lastUpdated: new Date().toISOString()
   };
 }
@@ -294,10 +294,10 @@ async function fetchGoldFromCurrencyAPI() {
   return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), source: 'XAU/VND (World)', lastUpdated: new Date().toISOString() };
 }
 
-// Nguồn 2: Yahoo Finance XAUUSD + USD/VND
+// Nguồn 2: Yahoo Finance XAUUSD=X (spot) + USD/VND
 async function fetchGoldFromYahooXAU() {
   const [xauRes, usdRes] = await Promise.all([
-    httpGet('https://query2.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=1d&range=1d', {
+    httpGet('https://query2.finance.yahoo.com/v8/finance/chart/XAUUSD%3DX?interval=1d&range=1d', {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }),
     httpGet('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', {
@@ -316,12 +316,13 @@ async function fetchGoldFromYahooXAU() {
   const pricePerLuong = xauVnd * (37.5 / 31.1035);
   const sellPrice = Math.round((pricePerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
   const buyPrice  = sellPrice - 500000;
-  console.log(`[GOLD] XAU=$${xauUsd} × ${usdVnd} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
-  return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), xauUsd, usdVnd, source: `XAUUSD $${xauUsd.toFixed(0)} × ${usdVnd.toFixed(0)}`, lastUpdated: new Date().toISOString() };
+  console.log(`[GOLD-Yahoo] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
+  return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), xauUsd, usdVnd, source: `Yahoo XAUUSD $${xauUsd.toFixed(0)}`, lastUpdated: new Date().toISOString() };
 }
 
 async function getGoldPriceSJC() {
-  const sources = [fetchGoldEODHD, fetchGoldFromCurrencyAPI, fetchGoldFromYahooXAU];
+  // Ưu tiên: Yahoo XAUUSD=X (spot thực) → EODHD XAUUSD.FOREX → CurrencyAPI XAU/VND
+  const sources = [fetchGoldFromYahooXAU, fetchGoldEODHD, fetchGoldFromCurrencyAPI];
   for (const fn of sources) {
     try {
       const result = await fn();
