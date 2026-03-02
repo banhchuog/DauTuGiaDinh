@@ -141,7 +141,14 @@ function calcTotal() {
   for (const inv of portfolio.investments) {
     const c = calcItem(inv);
     totalCost += c.costValue;
-    if (c.hasPrice) { totalValue += c.currentValue; pricedCount++; }
+    if (inv.hidden) {
+      // Ẩn: tính vốn vào giá trị hiện tại để tổng vốn không thay đổi, PnL = 0
+      totalValue += c.costValue;
+      pricedCount++;
+    } else if (c.hasPrice) {
+      totalValue += c.currentValue;
+      pricedCount++;
+    }
   }
   const totalPnL = pricedCount > 0 ? totalValue - totalCost : 0;
   const totalPnLPct = totalCost > 0 && pricedCount > 0
@@ -266,7 +273,9 @@ function renderChart() {
 
 function renderPerfList(items, total) {
   const perfEl = document.getElementById('perfList');
-  const sorted = [...portfolio.investments].map((inv, i) => {
+  const sorted = [...portfolio.investments]
+  .filter(inv => !inv.hidden)
+  .map((inv, i) => {
     const c = calcItem(inv);
     return { inv, c, color: PALETTE[i % PALETTE.length] };
   }).sort((a, b) => {
@@ -335,13 +344,15 @@ function renderInvestments() {
 function buildInvestCard(inv) {
   const c = calcItem(inv);
   const sign = c.pnl >= 0 ? '+' : '';
-  const cls = c.pnl > 0 ? 'profit' : c.pnl < 0 ? 'loss' : 'neutral';
+  const cls = inv.hidden ? 'neutral' : (c.pnl > 0 ? 'profit' : c.pnl < 0 ? 'loss' : 'neutral');
   const icon = typeIcon(inv.type, inv.symbol);
   const typeMap = { stock: 'Cổ phiếu', gold: 'Vàng', crypto: 'Crypto', other: 'Khác' };
   const badgeClass = `badge-${inv.type}`;
   const unitLabel = inv.type === 'gold' ? 'lượng' : inv.type === 'crypto' ? 'coin' : 'cp';
 
+  // Ẩn price change khi đang hidden để không lộ lời/lỗ
   const priceChangeHtml = (() => {
+    if (inv.hidden) return '';
     const pd = priceCache[inv.id];
     if (!pd) return '';
     const ch = pd.change ?? 0;
@@ -352,7 +363,7 @@ function buildInvestCard(inv) {
     return `<div class="ic-price-change ${dir}">${s} ${fmtVND(Math.abs(ch))} (${Math.abs(chPct).toFixed(2)}%)</div>`;
   })();
 
-  return `<div class="invest-card ${cls}" data-id="${inv.id}">
+  return `<div class="invest-card ${cls}${inv.hidden ? ' is-hidden' : ''}" data-id="${inv.id}">
     <div class="ic-icon ${inv.type}">${icon}</div>
 
     <div class="ic-info">
@@ -393,17 +404,29 @@ function buildInvestCard(inv) {
 
     <!-- PnL -->
     <div class="ic-pnl">
-      <div class="ic-pnl-value ${cls}">
-        ${c.hasPrice ? `${sign}${fmtVNDShort(c.pnl)}` : '–'}
-      </div>
-      <div class="ic-pnl-pct ${cls}">
-        ${c.pnlPct !== null ? `${sign}${c.pnlPct.toFixed(2)}%` : '–'}
-      </div>
-      ${c.hasPrice ? `<div class="ic-total-value">≈ ${fmtVNDShort(c.currentValue)}</div>` : ''}
+      ${inv.hidden
+        ? `<div class="ic-hold-tag">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Giữ dài hạn
+          </div>`
+        : `<div class="ic-pnl-value ${cls}">
+            ${c.hasPrice ? `${sign}${fmtVNDShort(c.pnl)}` : '–'}
+          </div>
+          <div class="ic-pnl-pct ${cls}">
+            ${c.pnlPct !== null ? `${sign}${c.pnlPct.toFixed(2)}%` : '–'}
+          </div>
+          ${c.hasPrice ? `<div class="ic-total-value">≈ ${fmtVNDShort(c.currentValue)}</div>` : ''}`
+      }
     </div>
 
     <!-- Actions -->
     <div class="ic-actions">
+      <button class="action-btn hide-toggle ${inv.hidden ? 'active' : ''}" onclick="toggleHide('${inv.id}')" title="${inv.hidden ? 'Bỏ ẩn' : 'Ẩn khoản này'}">
+        ${inv.hidden
+          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
+          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        }
+      </button>
       <button class="action-btn edit" onclick="openEditModal('${inv.id}')" title="Sửa">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
@@ -511,6 +534,21 @@ async function confirmDelete() {
   deleteId = null;
   renderAll();
   showToast('🗑️ Đã xóa khỏi danh mục', 'info');
+}
+
+// ──────────────────────────────
+// TOGGLE HIDE
+// ──────────────────────────────
+async function toggleHide(id) {
+  const inv = portfolio.investments.find(x => x.id === id);
+  if (!inv) return;
+  inv.hidden = !inv.hidden;
+  await savePortfolio();
+  renderAll();
+  showToast(
+    inv.hidden ? '🙈 Đã ẩn – hiện Giữ dài hạn' : '👁️ Đã hiện lại khoản đầu tư',
+    'info'
+  );
 }
 
 // ──────────────────────────────

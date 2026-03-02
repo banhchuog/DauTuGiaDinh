@@ -767,6 +767,29 @@ a { text-decoration: none; color: inherit; }
 }
 .action-btn:hover.edit { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,.1); }
 .action-btn:hover.del  { border-color: var(--red);  color: var(--red);  background: rgba(239,68,68,.1); }
+.action-btn.hide-toggle { color: var(--text-3); }
+.action-btn.hide-toggle.active { border-color: #F59E0B; color: #F59E0B; background: rgba(245,158,11,.1); }
+.action-btn:hover.hide-toggle  { border-color: #F59E0B; color: #F59E0B; background: rgba(245,158,11,.1); }
+
+/* Invest card – hidden / hold state */
+.invest-card.is-hidden {
+  opacity: 0.75;
+  border-left-color: var(--text-3) !important;
+}
+.ic-hold-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(245,158,11,.12);
+  color: #F59E0B;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: .02em;
+}
+.ic-hold-tag svg { width: 12px; height: 12px; flex-shrink: 0; }
 
 /* ─────────────────────────────────────────────────────────
    MODAL
@@ -1139,6 +1162,8 @@ a { text-decoration: none; color: inherit; }
   .invest-card > .ic-actions { grid-area: actions; flex-direction: row; gap: 4px; align-self: center; }
   .invest-card > .ic-prices  { grid-area: pri; padding-top: 10px; text-align: left; }
   .invest-card > .ic-pnl     { grid-area: pnl; padding-top: 10px; text-align: right; }
+  .invest-card.is-hidden > .ic-pnl { display: flex; align-items: center; justify-content: flex-end; }
+  .ic-hold-tag { font-size: 11px; padding: 3px 8px; }
 
   /* Đường kẻ phân cách bằng pseudo-element */
   .invest-card > .ic-prices::before {
