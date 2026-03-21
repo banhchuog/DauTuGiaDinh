@@ -185,7 +185,8 @@ a { text-decoration: none; color: inherit; }
 .btn svg          { width: 15px; height: 15px; vertical-align: middle; flex-shrink: 0; }
 .btn-refresh svg  { width: 15px; height: 15px; }
 .update-info svg  { width: 13px; height: 13px; opacity: .6; }
-.ic-notes         { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3); }
+.ic-notes         { display: inline-flex; align-items: center; color: var(--text-3); cursor: default; opacity: .75; transition: opacity var(--tr); }
+.ic-notes:hover   { opacity: 1; color: var(--blue); }
 
 /* Spin class cho SVG */
 .svg-spin { animation: spin .7s linear infinite; }
@@ -790,6 +791,68 @@ a { text-decoration: none; color: inherit; }
   letter-spacing: .02em;
 }
 .ic-hold-tag svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────────────────
+   GIÁ VÀNG THỦ CÔNG
+───────────────────────────────────────────────────────── */
+.gold-price-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: rgba(245,158,11,.07);
+  border: 1px solid rgba(245,158,11,.25);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.gold-price-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #F59E0B;
+  white-space: nowrap;
+}
+.gold-price-label svg { width: 15px; height: 15px; }
+.gold-price-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+.gold-price-input {
+  flex: 1;
+  max-width: 240px;
+  height: 36px;
+  font-size: 14px;
+  padding: 0 10px;
+}
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity var(--tr);
+  flex-shrink: 0;
+}
+.btn-gold:hover { opacity: .85; }
+.btn-gold svg { width: 13px; height: 13px; }
+@media (max-width: 768px) {
+  .gold-price-row { gap: 8px; padding: 10px 12px; }
+  .gold-price-input { max-width: unset; }
+}
 
 /* ─────────────────────────────────────────────────────────
    MODAL

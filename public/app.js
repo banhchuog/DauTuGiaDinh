@@ -26,6 +26,7 @@ const PALETTE = [
 document.addEventListener('DOMContentLoaded', async () => {
   setPageDate();
   await loadPortfolio();
+  injectManualGoldPrices();
   renderAll();
   await refreshPrices();
   setupEventListeners();
@@ -59,6 +60,49 @@ async function savePortfolio() {
 }
 
 // ──────────────────────────────
+// GIÁ VÀNG THỦ CÔNG
+// ──────────────────────────────
+function injectManualGoldPrices() {
+  if (!portfolio.goldPrice || portfolio.goldPrice <= 0) return;
+  for (const inv of portfolio.investments) {
+    if (inv.type === 'gold') {
+      priceCache[inv.id] = {
+        price: portfolio.goldPrice,
+        change: 0,
+        changePercent: 0,
+        source: 'Nhập thủ công',
+        lastUpdated: new Date().toISOString()
+      };
+    }
+  }
+}
+
+function updateGoldPriceRow() {
+  const hasGold = portfolio.investments.some(inv => inv.type === 'gold');
+  const row = document.getElementById('goldPriceRow');
+  if (!row) return;
+  row.style.display = hasGold ? 'flex' : 'none';
+  if (hasGold && portfolio.goldPrice) {
+    const input = document.getElementById('goldPriceInput');
+    if (input) input.value = portfolio.goldPrice;
+  }
+}
+
+async function saveGoldPrice() {
+  const input = document.getElementById('goldPriceInput');
+  const price = parseFloat(String(input.value).replace(/[^\d.]/g, ''));
+  if (!price || price < 1_000_000) {
+    showToast('Giá vàng không hợp lệ', 'error');
+    return;
+  }
+  portfolio.goldPrice = price;
+  await savePortfolio();
+  injectManualGoldPrices();
+  renderAll();
+  showToast(`✅ Giá vàng: ${fmtVNDShort(price)}/lượng`, 'success');
+}
+
+// ──────────────────────────────
 // REFRESH PRICES (batch)
 // ──────────────────────────────
 async function refreshPrices() {
@@ -72,25 +116,32 @@ async function refreshPrices() {
   showToast('Đang cập nhật giá thị trường...', 'info');
 
   try {
-    const items = portfolio.investments.map(inv => ({
-      id: inv.id, type: inv.type, symbol: inv.symbol
-    }));
+    // Vàng nhập thủ công – không gửi lên API
+    const items = portfolio.investments
+      .filter(inv => inv.type !== 'gold')
+      .map(inv => ({ id: inv.id, type: inv.type, symbol: inv.symbol }));
 
-    const res = await fetch('/api/prices/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items })
-    });
+    let priceMap = {};
+    if (items.length > 0) {
+      const res = await fetch('/api/prices/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      });
+      priceMap = await res.json();
+    }
 
-    const priceMap = await res.json();
     let updated = 0;
-
     for (const [id, priceData] of Object.entries(priceMap)) {
       if (priceData && priceData.price > 0) {
         priceCache[id] = priceData;
         updated++;
       }
     }
+
+    // Áp giá vàng thủ công vào priceCache
+    injectManualGoldPrices();
+    updated += portfolio.investments.filter(inv => inv.type === 'gold' && portfolio.goldPrice > 0).length;
 
     document.getElementById('lastUpdated').textContent =
       new Date().toLocaleTimeString('vi-VN');
@@ -339,6 +390,7 @@ function renderInvestments() {
   }
 
   listEl.innerHTML = filtered.map(inv => buildInvestCard(inv)).join('');
+  updateGoldPriceRow();
 }
 
 function buildInvestCard(inv) {
@@ -370,7 +422,7 @@ function buildInvestCard(inv) {
       <div class="ic-header">
         <span class="ic-symbol">${inv.symbol}</span>
         <span class="ic-badge ${badgeClass}">${typeMap[inv.type] || inv.type}</span>
-        ${inv.notes ? `<span class="ic-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> ${inv.notes}</span>` : ''}
+        ${inv.notes ? `<span class="ic-notes" title="${inv.notes.replace(/"/g, '&quot;')}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>` : ''}
       </div>
       <div class="ic-name">${inv.name || ''}</div>
       <div class="ic-qty-row">
@@ -396,10 +448,10 @@ function buildInvestCard(inv) {
     <!-- Giá thị trường -->
     <div class="ic-prices">
       <div class="ic-current-price ${c.hasPrice ? '' : 'loading'}">
-        ${c.hasPrice ? fmtVND(c.currentPrice) : '⏳ Đang tải...'}
+        ${c.hasPrice ? fmtVND(c.currentPrice) : (inv.type === 'gold' ? '✏️ Nhập giá bên trên' : '⏳ Đang tải...')}
       </div>
       ${priceChangeHtml}
-      ${priceCache[inv.id]?.source ? `<div class="ic-source">📡 ${priceCache[inv.id].source}</div>` : ''}
+      ${priceCache[inv.id]?.source ? `<div class="ic-source">${priceCache[inv.id].source === 'Nhập thủ công' ? '✏️' : '📡'} ${priceCache[inv.id].source}</div>` : ''}
     </div>
 
     <!-- PnL -->
@@ -695,6 +747,12 @@ function setupEventListeners() {
       document.getElementById('delModal').style.display = 'none';
     }
   });
+
+  // Gold price manual input
+  const goldPriceBtn = document.getElementById('goldPriceBtn');
+  const goldPriceInput = document.getElementById('goldPriceInput');
+  if (goldPriceBtn) goldPriceBtn.addEventListener('click', saveGoldPrice);
+  if (goldPriceInput) goldPriceInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveGoldPrice(); });
 
   // Auto refresh mỗi 2 phút
   setInterval(refreshPrices, 120000);
