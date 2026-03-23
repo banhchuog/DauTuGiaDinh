@@ -12,6 +12,8 @@ let allocationChart = null;
 let currentFilter = 'all';
 let deleteId = null;
 let isRefreshing = false;
+let currentPage = 'main';  // 'main' | 'forecast' | 'gold-health'
+let ghCharts = {};   // Chart.js instances for gold health page
 
 // Màu cho chart
 const PALETTE = [
@@ -30,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderAll();
   await refreshPrices();
   setupEventListeners();
+  initForecastPage();
 });
 
 function setPageDate() {
@@ -669,10 +672,906 @@ function updatePreview() {
 }
 
 // ──────────────────────────────
+// PAGE NAVIGATION
+// ──────────────────────────────
+function navigateTo(page) {
+  currentPage = page;
+  const pageMain       = document.getElementById('page-main');
+  const pageForecast   = document.getElementById('page-forecast');
+  const pageGoldHealth = document.getElementById('page-gold-health');
+  const addBtn         = document.getElementById('addBtn');
+  const pageDateEl     = document.querySelector('.page-title');
+
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+  if (page === 'main') {
+    if (pageMain)       pageMain.style.display       = '';
+    if (pageForecast)   pageForecast.style.display   = 'none';
+    if (pageGoldHealth) pageGoldHealth.style.display = 'none';
+    document.getElementById('navMain')?.classList.add('active');
+    if (pageDateEl) pageDateEl.textContent = 'Danh Mục Đầu Tư';
+    if (addBtn) addBtn.style.display = '';
+  } else if (page === 'forecast') {
+    if (pageMain)       pageMain.style.display       = 'none';
+    if (pageForecast)   pageForecast.style.display   = '';
+    if (pageGoldHealth) pageGoldHealth.style.display = 'none';
+    document.getElementById('navForecast')?.classList.add('active');
+    if (pageDateEl) pageDateEl.textContent = 'Dự báo AI';
+    if (addBtn) addBtn.style.display = 'none';
+  } else if (page === 'gold-health') {
+    if (pageMain)       pageMain.style.display       = 'none';
+    if (pageForecast)   pageForecast.style.display   = 'none';
+    if (pageGoldHealth) pageGoldHealth.style.display = '';
+    document.getElementById('navGoldHealth')?.classList.add('active');
+    if (pageDateEl) pageDateEl.textContent = 'Sức khỏe Thị trường Vàng';
+    if (addBtn) addBtn.style.display = 'none';
+    loadGoldHealth();
+  }
+}
+
+// ──────────────────────────────
+// FORECAST – INIT
+// ──────────────────────────────
+function initForecastPage() {
+  const sel = document.getElementById('forecastMonthSel');
+  if (!sel || sel.options.length > 0) return;
+
+  const now = new Date();
+  const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                      'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+  for (let i = 1; i <= 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const m = d.getMonth() + 1;
+    const y = d.getFullYear();
+    const opt = document.createElement('option');
+    opt.value = `${y}-${String(m).padStart(2, '0')}`;
+    opt.textContent = `${monthNames[m - 1]} ${y}`;
+    sel.appendChild(opt);
+  }
+}
+
+// ──────────────────────────────
+// FORECAST – RUN
+// ──────────────────────────────
+async function runForecast() {
+  const sel      = document.getElementById('forecastMonthSel');
+  const modelSel = document.getElementById('forecastModelSel');
+  const loadEl   = document.getElementById('forecastLoading');
+  const resultEl = document.getElementById('forecastResult');
+  const btnEl    = document.getElementById('runForecastBtn');
+  const noticeEl = document.getElementById('fcApiNotice');
+
+  if (!sel.value) { showToast('Vui lòng chọn tháng dự báo', 'error'); return; }
+  if (!portfolio.investments.length) { showToast('Danh mục trống', 'error'); return; }
+
+  const [year, month] = sel.value.split('-').map(Number);
+  const model = modelSel.value;
+
+  // Reset UI
+  if (noticeEl) noticeEl.style.display = 'none';
+  loadEl.style.display = 'flex';
+  resultEl.style.display = 'none';
+  btnEl.disabled = true;
+  const btnSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="svg-spin"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`;
+  btnEl.innerHTML = `${btnSvg}<span>Đang phân tích...</span>`;
+
+  // Loading messages rotation
+  const loadMsgs = [
+    'Đang thu thập dữ liệu thị trường...',
+    'Phân tích xu hướng ngành và kinh tế vĩ mô...',
+    'Gemini AI đang tính toán dự báo giá...',
+    'Đánh giá rủi ro và kịch bản thị trường...',
+    'Hoàn thiện báo cáo dự báo...'
+  ];
+  let msgIdx = 0;
+  const msgEl = document.getElementById('forecastLoadingMsg');
+  const msgTimer = setInterval(() => {
+    if (msgEl) msgEl.textContent = loadMsgs[++msgIdx % loadMsgs.length];
+  }, 3500);
+
+  try {
+    const currentPrices = {};
+    for (const [id, data] of Object.entries(priceCache)) {
+      currentPrices[id] = data;
+    }
+
+    const res = await fetch('/api/forecast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        investments: portfolio.investments,
+        currentPrices,
+        targetMonth: month,
+        targetYear: year,
+        model
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (data.error?.includes('GEMINI_API_KEY') || data.error?.includes('API key')) {
+        if (noticeEl) noticeEl.style.display = 'flex';
+        showToast('❌ Cần cấu hình Gemini API Key', 'error');
+      } else {
+        showToast(`❌ ${data.error || 'Lỗi không xác định'}`, 'error');
+      }
+      return;
+    }
+
+    renderForecastResult(data);
+    resultEl.style.display = 'block';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast('✅ Dự báo AI hoàn thành!', 'success');
+
+  } catch (e) {
+    console.error('[forecast]', e);
+    showToast(`❌ Lỗi kết nối: ${e.message}`, 'error');
+  } finally {
+    clearInterval(msgTimer);
+    loadEl.style.display = 'none';
+    btnEl.disabled = false;
+    btnEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Dự báo ngay</span>`;
+  }
+}
+
+// ──────────────────────────────
+// FORECAST – RENDER RESULT
+// ──────────────────────────────
+function renderForecastResult(data) {
+  const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                      'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+
+  // Banner
+  const monthLabel = `${monthNames[(data.forecastMonth || 1) - 1]} ${data.forecastYear || ''}`;
+  setEl('fmbMonth', monthLabel);
+  const modelName = document.getElementById('forecastModelSel')?.selectedOptions[0]?.text || '';
+  setEl('fmbModel', modelName);
+
+  // Calculate totals
+  let totalCost = 0, totalForecastValue = 0, totalCurrentValue = 0, hasCurrentPrices = 0;
+  const items = data.items || [];
+  for (const item of items) {
+    const qty = item.quantity || 0;
+    totalCost          += qty * (item.purchasePrice || 0);
+    totalForecastValue += qty * (item.forecastPrice || 0);
+    if (item.currentPrice) {
+      totalCurrentValue += qty * item.currentPrice;
+      hasCurrentPrices++;
+    }
+  }
+
+  const fcPnL    = totalForecastValue - totalCost;
+  const fcPnLPct = totalCost > 0 ? (fcPnL / totalCost) * 100 : 0;
+  const changeVsCurrent = (hasCurrentPrices > 0 && totalCurrentValue > 0)
+    ? ((totalForecastValue - totalCurrentValue) / totalCurrentValue) * 100
+    : null;
+
+  // Summary cards
+  setEl('fcTotalValue', fmtVND(totalForecastValue));
+  setEl('fcTotalCost', fmtVND(totalCost));
+
+  const pnlEl   = document.getElementById('fcTotalPnL');
+  const pnlIcon = document.getElementById('fcPnLIcon');
+  if (pnlEl) {
+    const isProfit = fcPnL >= 0;
+    const sign = isProfit ? '+' : '';
+    pnlEl.innerHTML = `${sign}${fmtVND(fcPnL)}<br><small style="font-size:12px;font-weight:500">${sign}${fcPnLPct.toFixed(2)}%</small>`;
+    pnlEl.style.color = isProfit ? 'var(--green)' : 'var(--red)';
+    if (pnlIcon) pnlIcon.className = `summary-icon ${isProfit ? 'icon-green' : 'icon-red'}`;
+  }
+
+  const changeEl = document.getElementById('fcChangeVsCurrent');
+  if (changeEl) {
+    if (changeVsCurrent !== null) {
+      const sign = changeVsCurrent >= 0 ? '+' : '';
+      changeEl.textContent = `${sign}${changeVsCurrent.toFixed(2)}%`;
+      changeEl.style.color = changeVsCurrent >= 0 ? 'var(--green)' : 'var(--red)';
+    } else {
+      changeEl.textContent = '–';
+    }
+  }
+
+  // Outlook
+  setEl('fcMarketOutlook', data.marketOutlook || '–');
+
+  // Risks
+  const risksWrap = document.getElementById('fcRisksWrap');
+  if (risksWrap) {
+    risksWrap.style.display = data.risks ? '' : 'none';
+    if (data.risks) setEl('fcRisks', data.risks);
+  }
+
+  // Disclaimer
+  setEl('fcDisclaimer', data.disclaimer || 'Dự báo chỉ mang tính tham khảo, không phải lời khuyên đầu tư.');
+
+  // Table + mobile cards
+  renderForecastTable(items);
+}
+
+function renderForecastTable(items) {
+  const tbody = document.getElementById('fcTableBody');
+  if (!tbody) return;
+
+  const typeMap  = { stock: 'CP', gold: 'Vàng', crypto: 'Crypto', other: 'Khác' };
+  const badgeMap = { stock: 'badge-stock', gold: 'badge-gold', crypto: 'badge-crypto', other: 'badge-other' };
+
+  const trendHtmlMap = {
+    'tăng':     `<span class="trend-badge trend-up">↑ Tăng</span>`,
+    'giảm':     `<span class="trend-badge trend-down">↓ Giảm</span>`,
+    'đi ngang': `<span class="trend-badge trend-flat">→ Đi ngang</span>`
+  };
+  const confClassMap = { 'cao': 'conf-high', 'trung bình': 'conf-mid', 'thấp': 'conf-low' };
+
+  tbody.innerHTML = items.map((item, i) => {
+    const qty          = item.quantity || 0;
+    const buyPrice     = item.purchasePrice || 0;
+    const curPrice     = item.currentPrice || null;
+    const fcPrice      = item.forecastPrice || 0;
+    const chgPct       = typeof item.changePercent === 'number' ? item.changePercent : 0;
+    const fcValue      = qty * fcPrice;
+    const fcPnL        = fcValue - (qty * buyPrice);
+    const fcPnLPct     = buyPrice > 0 ? ((fcPrice - buyPrice) / buyPrice) * 100 : 0;
+    const unitLabel    = item.type === 'gold' ? 'lượng' : item.type === 'crypto' ? 'coin' : 'cp';
+
+    const chgColor  = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
+    const chgSign   = chgPct >= 0 ? '+' : '';
+    const pnlColor  = fcPnL >= 0 ? 'var(--green)' : 'var(--red)';
+    const pnlSign   = fcPnL >= 0 ? '+' : '';
+
+    const trendHtml = trendHtmlMap[item.trend] || `<span class="trend-badge trend-flat">${item.trend || '–'}</span>`;
+    const confClass = confClassMap[item.confidence] || 'conf-low';
+    const confHtml  = `<span class="conf-badge ${confClass}">${item.confidence || '–'}</span>`;
+
+    const upsideDownside = (item.upside && item.downside)
+      ? `<div class="fc-scenarios">🔼 ${fmtVND(item.upside)} &nbsp;|&nbsp; 🔽 ${fmtVND(item.downside)}</div>`
+      : '';
+
+    return `<tr>
+      <td class="fc-num">${i + 1}</td>
+      <td>
+        <div class="fc-cell-name">
+          <span class="fc-symbol">${item.symbol}</span>
+          <span class="fc-name-text">${item.name || ''}</span>
+          ${upsideDownside}
+        </div>
+      </td>
+      <td><span class="ic-badge ${badgeMap[item.type] || ''}">${typeMap[item.type] || item.type}</span></td>
+      <td class="num">${fmtNum(qty)} ${unitLabel}</td>
+      <td class="num">${fmtVND(buyPrice)}</td>
+      <td class="num">${curPrice ? fmtVND(curPrice) : '<span style="color:var(--text-3)">–</span>'}</td>
+      <td class="num fc-price-cell">${fmtVND(fcPrice)}</td>
+      <td class="num" style="color:${chgColor};font-weight:600">${chgSign}${chgPct.toFixed(2)}%</td>
+      <td class="num">${fmtVND(fcValue)}</td>
+      <td class="num" style="color:${pnlColor}">
+        ${pnlSign}${fmtVNDShort(fcPnL)}<br>
+        <small style="font-size:11px">${pnlSign}${fcPnLPct.toFixed(2)}%</small>
+      </td>
+      <td>${trendHtml}</td>
+      <td>${confHtml}</td>
+      <td class="fc-reasoning-cell">${item.reasoning || '–'}</td>
+    </tr>`;
+  }).join('');
+
+  // Mobile cards
+  renderForecastMobileCards(items);
+}
+
+function renderForecastMobileCards(items) {
+  const container = document.getElementById('fcMobileCards');
+  if (!container) return;
+
+  const confClassMap = { 'cao': 'conf-high', 'trung bình': 'conf-mid', 'thấp': 'conf-low' };
+  const trendHtmlMap = {
+    'tăng':     `<span class="trend-badge trend-up">↑ Tăng</span>`,
+    'giảm':     `<span class="trend-badge trend-down">↓ Giảm</span>`,
+    'đi ngang': `<span class="trend-badge trend-flat">→ Đi ngang</span>`
+  };
+  const typeIconFn = (type) => typeIcon(type, '');
+
+  container.innerHTML = items.map(item => {
+    const qty     = item.quantity || 0;
+    const buyP    = item.purchasePrice || 0;
+    const fcP     = item.forecastPrice || 0;
+    const chgPct  = typeof item.changePercent === 'number' ? item.changePercent : 0;
+    const fcValue = qty * fcP;
+    const fcPnL   = fcValue - qty * buyP;
+    const fcPnLPct = buyP > 0 ? ((fcP - buyP) / buyP * 100) : 0;
+    const chgColor = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
+    const pnlColor = fcPnL >= 0 ? 'var(--green)' : 'var(--red)';
+    const chgSign  = chgPct >= 0 ? '+' : '';
+    const pnlSign  = fcPnL >= 0 ? '+' : '';
+    const confClass = confClassMap[item.confidence] || 'conf-low';
+    const trendHtml = trendHtmlMap[item.trend] || `<span class="trend-badge trend-flat">${item.trend || '–'}</span>`;
+
+    return `<div class="fc-mobile-card">
+      <div class="fc-mc-header">
+        <div class="ic-icon ${item.type}">${typeIconFn(item.type)}</div>
+        <div class="fc-mc-title">
+          <span class="fc-symbol">${item.symbol}</span>
+          <span class="fc-name-text">${item.name || ''}</span>
+        </div>
+        <div class="fc-mc-badges">
+          ${trendHtml}
+          <span class="conf-badge ${confClass}">${item.confidence || '–'}</span>
+        </div>
+      </div>
+      <div class="fc-mc-grid">
+        <div class="fc-mc-row">
+          <span class="fc-mc-label">Giá dự báo</span>
+          <span class="fc-mc-value fc-price-cell">${fmtVND(fcP)}</span>
+        </div>
+        <div class="fc-mc-row">
+          <span class="fc-mc-label">Thay đổi</span>
+          <span class="fc-mc-value" style="color:${chgColor}">${chgSign}${chgPct.toFixed(2)}%</span>
+        </div>
+        <div class="fc-mc-row">
+          <span class="fc-mc-label">Giá trị dự báo</span>
+          <span class="fc-mc-value">${fmtVNDShort(fcValue)}</span>
+        </div>
+        <div class="fc-mc-row">
+          <span class="fc-mc-label">Lời / Lỗ</span>
+          <span class="fc-mc-value" style="color:${pnlColor}">${pnlSign}${fmtVNDShort(fcPnL)} (${pnlSign}${fcPnLPct.toFixed(2)}%)</span>
+        </div>
+      </div>
+      ${item.reasoning ? `<div class="fc-mc-reasoning">${item.reasoning}</div>` : ''}
+      ${(item.upside && item.downside) ? `<div class="fc-mc-scenarios">🔼 ${fmtVND(item.upside)} &nbsp;|&nbsp; 🔽 ${fmtVND(item.downside)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// GOLD HEALTH PAGE
+// ══════════════════════════════════════════════
+
+let ghDataCache = null;
+let ghLoadingLock = false;
+
+async function loadGoldHealth(forceRefresh = false) {
+  if (ghLoadingLock) return;
+  if (ghDataCache && !forceRefresh) { renderGoldHealth(ghDataCache); return; }
+
+  ghLoadingLock = true;
+  const btn = document.getElementById('ghRefreshBtn');
+  const icon = document.getElementById('ghRefreshIcon');
+  if (btn) btn.disabled = true;
+  if (icon) icon.classList.add('svg-spin');
+  setEl('ghLastUpdated', '⏳ Đang tải dữ liệu...');
+
+  try {
+    const res = await fetch('/api/gold-health');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    ghDataCache = data;
+    renderGoldHealth(data);
+    setEl('ghLastUpdated', `Cập nhật lúc ${new Date().toLocaleTimeString('vi-VN')}`);
+    showToast('✅ Đã tải dữ liệu sức khỏe vàng', 'success');
+  } catch (e) {
+    setEl('ghLastUpdated', `❌ Lỗi: ${e.message}`);
+    showToast(`❌ Không tải được dữ liệu: ${e.message}`, 'error');
+  } finally {
+    ghLoadingLock = false;
+    if (btn) btn.disabled = false;
+    if (icon) icon.classList.remove('svg-spin');
+  }
+}
+
+// ── Render toàn bộ trang Gold Health ──
+function renderGoldHealth(data) {
+  // Scorecard
+  renderGHScorecard(data);
+  // Outlook
+  renderGHOutlook(data);
+  // Individual charts
+  renderGHChart('gold', data.gold, '#F59E0B', 'USD/oz', signalGold);
+  renderGHChart('dxy',  data.dxy,  '#3B82F6', 'pts',    signalDxy);
+  renderGHChart('tnx',  data.tnx,  '#8B5CF6', '%',      signalTnx);
+  renderGHChart('eur',  data.eur,  '#10B981', '',        signalEur);
+  renderGHChart('vix',  data.vix,  '#EF4444', 'pts',    signalVix);
+  renderGHChart('gsr',  data.gsr,  '#F97316', 'x',      signalGsr);
+  renderGHChart('gld',  data.gld,  '#84CC16', 'USD',    signalGld);
+  renderGHChart('oil',  data.oil,  '#06B6D4', 'USD/bbl',signalOil);
+  // Correlation chart
+  renderGHCorrChart(data);
+}
+
+// ── Signal functions ──
+function signalGold(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 3500) return { text: `${fmtNum(Math.round(p))} $ — Tăng cao`, color: 'green' };
+  if (p > 2800) return { text: `${fmtNum(Math.round(p))} $ — Ổn định cao`, color: 'green' };
+  if (p > 2200) return { text: `${fmtNum(Math.round(p))} $ — Trung tính`, color: 'yellow' };
+  return { text: `${fmtNum(Math.round(p))} $ — Thấp`, color: 'red' };
+}
+function signalDxy(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 105) return { text: `${p.toFixed(2)} — USD rất mạnh ⚠️`, color: 'red' };
+  if (p > 100) return { text: `${p.toFixed(2)} — USD mạnh`, color: 'yellow' };
+  if (p > 95)  return { text: `${p.toFixed(2)} — USD trung tính`, color: 'yellow' };
+  return { text: `${p.toFixed(2)} — USD yếu ✅`, color: 'green' };
+}
+function signalTnx(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 5.0) return { text: `${p.toFixed(2)}% — Rất cao ⚠️`, color: 'red' };
+  if (p > 4.0) return { text: `${p.toFixed(2)}% — Cao`, color: 'yellow' };
+  if (p > 3.0) return { text: `${p.toFixed(2)}% — Bình thường`, color: 'yellow' };
+  return { text: `${p.toFixed(2)}% — Thấp ✅`, color: 'green' };
+}
+function signalEur(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 1.15) return { text: `${p.toFixed(4)} — EUR mạnh ✅`, color: 'green' };
+  if (p > 1.05) return { text: `${p.toFixed(4)} — Trung tính`, color: 'yellow' };
+  return { text: `${p.toFixed(4)} — EUR yếu`, color: 'red' };
+}
+function signalVix(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 35)  return { text: `${p.toFixed(1)} — Hoảng loạn 🔥`, color: 'green' };
+  if (p > 20)  return { text: `${p.toFixed(1)} — Lo ngại`, color: 'yellow' };
+  return { text: `${p.toFixed(1)} — Bình tĩnh`, color: 'yellow' };
+}
+function signalGsr(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 90)  return { text: `${p.toFixed(1)}x — Vàng rất đắt`, color: 'yellow' };
+  if (p > 80)  return { text: `${p.toFixed(1)}x — Vàng cao ⚠️`, color: 'yellow' };
+  if (p > 60)  return { text: `${p.toFixed(1)}x — Bình thường`, color: 'green' };
+  return { text: `${p.toFixed(1)}x — Vàng rẻ tương đối`, color: 'green' };
+}
+function signalGld(d) {
+  const p = d?.data?.price; if (!p) return null;
+  const chg = d?.data?.changePct || 0;
+  if (chg > 1)  return { text: `$${p.toFixed(2)} — Dòng tiền vào ✅`, color: 'green' };
+  if (chg > 0)  return { text: `$${p.toFixed(2)} — Tăng nhẹ`, color: 'green' };
+  if (chg > -1) return { text: `$${p.toFixed(2)} — Ổn định`, color: 'yellow' };
+  return { text: `$${p.toFixed(2)} — Dòng tiền ra`, color: 'red' };
+}
+function signalOil(d) {
+  const p = d?.data?.price; if (!p) return null;
+  if (p > 90)  return { text: `$${p.toFixed(1)}/bbl — Cao (lạm phát)`, color: 'green' };
+  if (p > 70)  return { text: `$${p.toFixed(1)}/bbl — Trung bình`, color: 'yellow' };
+  return { text: `$${p.toFixed(1)}/bbl — Thấp`, color: 'red' };
+}
+
+// ── Outlook / Nhận định ──
+function renderGHOutlook(data) {
+  const el = document.getElementById('ghOutlookCard');
+  if (!el) return;
+
+  const factors = [];
+  let totalScore = 0;
+
+  // DXY
+  const dxy = data.dxy?.data?.price;
+  if (dxy != null) {
+    let sc, icon, desc;
+    if (dxy < 100)      { sc = +2; icon = '✅'; desc = `DXY ${dxy.toFixed(2)} — USD yếu, hỗ trợ vàng tích cực`; }
+    else if (dxy < 103) { sc = +1; icon = '↗️'; desc = `DXY ${dxy.toFixed(2)} — USD trung tính, không cản trở vàng`; }
+    else if (dxy < 105) { sc = -1; icon = '⚠️'; desc = `DXY ${dxy.toFixed(2)} — USD mạnh, tạo áp lực lên vàng`; }
+    else                { sc = -2; icon = '❌'; desc = `DXY ${dxy.toFixed(2)} — USD rất mạnh, cản trở vàng đáng kể`; }
+    factors.push({ icon, desc, sc, label: 'DXY' }); totalScore += sc;
+  }
+
+  // US10Y
+  const tnx = data.tnx?.data?.price;
+  if (tnx != null) {
+    let sc, icon, desc;
+    if (tnx < 3.5)      { sc = +2; icon = '✅'; desc = `US10Y ${tnx.toFixed(2)}% — Lợi suất thấp, chi phí cơ hội giữ vàng thấp`; }
+    else if (tnx < 4.0) { sc = +1; icon = '↗️'; desc = `US10Y ${tnx.toFixed(2)}% — Lợi suất vừa phải, ít cản trở vàng`; }
+    else if (tnx < 4.5) { sc =  0; icon = '⚠️'; desc = `US10Y ${tnx.toFixed(2)}% — Lợi suất cao, giới hạn đà tăng vàng`; }
+    else if (tnx < 5.0) { sc = -1; icon = '⚠️'; desc = `US10Y ${tnx.toFixed(2)}% — Lợi suất rất cao, áp lực lên vàng`; }
+    else                { sc = -2; icon = '❌'; desc = `US10Y ${tnx.toFixed(2)}% — Lợi suất quá cao, cản trở vàng mạnh`; }
+    factors.push({ icon, desc, sc, label: 'US10Y' }); totalScore += sc;
+  }
+
+  // VIX
+  const vix = data.vix?.data?.price;
+  if (vix != null) {
+    let sc, icon, desc;
+    if (vix > 35)       { sc = +2; icon = '✅'; desc = `VIX ${vix.toFixed(1)} — Hoảng loạn, dòng tiền tháo chạy vào vàng`; }
+    else if (vix > 25)  { sc = +1; icon = '✅'; desc = `VIX ${vix.toFixed(1)} — Lo ngại, nhu cầu tài sản trú ẩn tăng`; }
+    else if (vix > 15)  { sc =  0; icon = '↔️'; desc = `VIX ${vix.toFixed(1)} — Bình thường, tâm lý thị trường trung tính`; }
+    else                { sc = -1; icon = '↘️'; desc = `VIX ${vix.toFixed(1)} — Tự tin cao, nhu cầu trú ẩn vào vàng giảm`; }
+    factors.push({ icon, desc, sc, label: 'VIX' }); totalScore += sc;
+  }
+
+  // EUR/USD
+  const eur = data.eur?.data?.price;
+  if (eur != null) {
+    let sc, icon, desc;
+    if (eur > 1.15)     { sc = +1; icon = '✅'; desc = `EUR/USD ${eur.toFixed(4)} — EUR mạnh, USD suy yếu hỗ trợ vàng`; }
+    else if (eur > 1.05){ sc =  0; icon = '↔️'; desc = `EUR/USD ${eur.toFixed(4)} — Tỷ giá EUR/USD trung tính`; }
+    else                { sc = -1; icon = '⚠️'; desc = `EUR/USD ${eur.toFixed(4)} — EUR yếu, USD tương đối mạnh`; }
+    factors.push({ icon, desc, sc, label: 'EUR/USD' }); totalScore += sc;
+  }
+
+  // Gold/Silver Ratio
+  const gsr = data.gsr?.data?.price;
+  if (gsr != null) {
+    let sc, icon, desc;
+    if (gsr > 90)       { sc = -1; icon = '⚠️'; desc = `GSR ${gsr.toFixed(1)}x — Vàng rất đắt so với bạc, thường điều chỉnh giảm`; }
+    else if (gsr > 80)  { sc =  0; icon = '↔️'; desc = `GSR ${gsr.toFixed(1)}x — Vàng hơi đắt so với bạc, cần theo dõi`; }
+    else if (gsr > 60)  { sc = +1; icon = '✅'; desc = `GSR ${gsr.toFixed(1)}x — Tỷ lệ vàng/bạc ở mức lịch sử hợp lý`; }
+    else                { sc = +1; icon = '✅'; desc = `GSR ${gsr.toFixed(1)}x — Vàng rẻ tương đối, tiềm năng bắt kịp bạc`; }
+    factors.push({ icon, desc, sc, label: 'Gold/Silver Ratio' }); totalScore += sc;
+  }
+
+  // GLD ETF
+  const gldData = data.gld?.data;
+  if (gldData != null) {
+    const chg = gldData.changePct || 0;
+    let sc, icon, desc;
+    if (chg > 1)         { sc = +2; icon = '✅'; desc = `GLD ETF +${chg.toFixed(2)}% — Dòng tiền tổ chức đổ vào rất mạnh`; }
+    else if (chg > 0)    { sc = +1; icon = '↗️'; desc = `GLD ETF +${chg.toFixed(2)}% — Dòng tiền tổ chức tích cực`; }
+    else if (chg > -1)   { sc =  0; icon = '↔️'; desc = `GLD ETF ${chg.toFixed(2)}% — Dòng tiền tổ chức trung tính`; }
+    else                 { sc = -1; icon = '⚠️'; desc = `GLD ETF ${chg.toFixed(2)}% — Tổ chức đang rút tiền khỏi vàng`; }
+    factors.push({ icon, desc, sc, label: 'GLD ETF' }); totalScore += sc;
+  }
+
+  // WTI Oil
+  const oil = data.oil?.data?.price;
+  if (oil != null) {
+    let sc, icon, desc;
+    if (oil > 90)        { sc = +1; icon = '✅'; desc = `WTI $${oil.toFixed(1)}/bbl — Dầu cao, kỳ vọng lạm phát hỗ trợ vàng`; }
+    else if (oil > 70)   { sc =  0; icon = '↔️'; desc = `WTI $${oil.toFixed(1)}/bbl — Giá dầu trung bình, lạm phát ổn định`; }
+    else                 { sc = -1; icon = '↘️'; desc = `WTI $${oil.toFixed(1)}/bbl — Dầu thấp, kỳ vọng lạm phát yếu`; }
+    factors.push({ icon, desc, sc, label: 'WTI Oil' }); totalScore += sc;
+  }
+
+  // ── Verdict ──
+  let verdict, vClass, vIcon;
+  const score = totalScore;
+  if (score >= 7)       { verdict = 'TĂNG MẠNH';    vClass = 'ov-bull-strong'; vIcon = '🚀'; }
+  else if (score >= 4)  { verdict = 'TĂNG NHẸ';     vClass = 'ov-bull';        vIcon = '📈'; }
+  else if (score >= 1)  { verdict = 'TÍCH CỰC NHẸ'; vClass = 'ov-bull-weak';   vIcon = '↗️'; }
+  else if (score === 0) { verdict = 'TRUNG TÍNH';   vClass = 'ov-neutral';     vIcon = '↔️'; }
+  else if (score >= -3) { verdict = 'TIÊU CỰC NHẸ'; vClass = 'ov-bear-weak';   vIcon = '↘️'; }
+  else if (score >= -6) { verdict = 'GIẢM NHẸ';     vClass = 'ov-bear';        vIcon = '📉'; }
+  else                  { verdict = 'GIẢM MẠNH';    vClass = 'ov-bear-strong'; vIcon = '⬇️'; }
+
+  // ── Narrative ──
+  const goldPrice = data.gold?.data?.price;
+  const goldPriceStr = goldPrice ? `$${fmtNum(Math.round(goldPrice))}/oz` : '';
+  const bullFactors = factors.filter(f => f.sc > 0).map(f => f.label);
+  const bearFactors = factors.filter(f => f.sc < 0).map(f => f.label);
+
+  const parts = [];
+  if (dxy != null && dxy < 100) parts.push(`USD đang suy yếu (DXY ${dxy.toFixed(2)})`);
+  if (dxy != null && dxy > 103) parts.push(`USD đang mạnh (DXY ${dxy.toFixed(2)})`);
+  if (vix != null && vix > 25) parts.push(`thị trường đang lo ngại (VIX ${vix.toFixed(1)})`);
+  if (tnx != null && tnx < 3.5) parts.push(`lợi suất trái phiếu Mỹ thấp (${tnx.toFixed(2)}%)`);
+  if (tnx != null && tnx >= 4.5) parts.push(`lợi suất trái phiếu Mỹ rất cao (${tnx.toFixed(2)}%)`);
+  if (oil != null && oil > 90) parts.push(`giá dầu cao ($${oil.toFixed(1)}/bbl) đẩy kỳ vọng lạm phát`);
+  if (gldData != null && gldData.changePct > 1) parts.push(`dòng tiền tổ chức đổ mạnh vào GLD ETF (+${gldData.changePct.toFixed(2)}%)`);
+  if (eur != null && eur > 1.15) parts.push(`EUR/USD mạnh (${eur.toFixed(4)}) phản ánh USD yếu`);
+
+  let narrative = `Vàng${goldPriceStr ? ` (${goldPriceStr})` : ''} đang nhận tín hiệu <strong>${verdict}</strong> trong ngắn hạn`;
+  if (parts.length > 0) narrative += ` do ${parts.slice(0, 3).join(', ')}`;
+  if (bearFactors.length > 0 && score > 0)
+    narrative += `. ⚠️ Rủi ro cần theo dõi: ${bearFactors.join(', ')}`;
+  else if (bullFactors.length > 0 && score <= 0)
+    narrative += `. Yếu tố hỗ trợ còn lại: ${bullFactors.join(', ')}`;
+  narrative += '.';
+
+  // ── Score bar (normalize -9..+11 → 0..100%) ──
+  const pct = Math.min(100, Math.max(0, Math.round(((score + 9) / 20) * 100)));
+
+  el.innerHTML = `
+    <div class="gh-ov-header">
+      <div class="gh-ov-title-row">
+        <span class="gh-ov-icon">🔮</span>
+        <h3 class="gh-ov-title">Nhận định Sức khỏe Vàng</h3>
+      </div>
+      <div class="gh-ov-verdict ${vClass}">${vIcon} ${verdict}</div>
+    </div>
+    <p class="gh-ov-narrative">${narrative}</p>
+    <div class="gh-ov-factors">
+      ${factors.map(f => `
+        <div class="gh-ov-factor">
+          <span class="gh-of-icon">${f.icon}</span>
+          <span class="gh-of-desc">${f.desc}</span>
+          <span class="gh-of-sc ${f.sc > 0 ? 'pos' : f.sc < 0 ? 'neg' : 'neu'}">${f.sc > 0 ? '+' + f.sc : f.sc === 0 ? '±0' : f.sc}</span>
+        </div>`).join('')}
+    </div>
+    <div class="gh-ov-bar-row">
+      <span class="gh-ob-lbl bear">📉 GIẢM</span>
+      <div class="gh-ov-bar">
+        <div class="gh-ob-fill ${vClass}" style="width:${pct}%"></div>
+        <div class="gh-ob-thumb" style="left:calc(${pct}% - 6px)"></div>
+      </div>
+      <span class="gh-ob-lbl bull">📈 TĂNG</span>
+      <span class="gh-ob-total ${vClass}">Tổng điểm: ${score > 0 ? '+' : ''}${score}</span>
+    </div>
+  `;
+}
+
+// ── Scorecard ──
+function renderGHScorecard(data) {
+  const grid = document.getElementById('ghScorecardGrid');
+  if (!grid) return;
+
+  const cards = [
+    { key: 'gold',  label: 'Vàng (GC=F)',     sigFn: signalGold,  icon: '🥇', group: 1 },
+    { key: 'dxy',   label: 'DXY',              sigFn: signalDxy,   icon: '💵', group: 1 },
+    { key: 'tnx',   label: 'US10Y Yield',      sigFn: signalTnx,   icon: '📈', group: 1 },
+    { key: 'eur',   label: 'EUR/USD',           sigFn: signalEur,   icon: '🌐', group: 1 },
+    { key: 'vix',   label: 'VIX',              sigFn: signalVix,   icon: '😱', group: 2 },
+    { key: 'gsr',   label: 'Gold/Silver',       sigFn: signalGsr,   icon: '⚖️', group: 2 },
+    { key: 'gld',   label: 'GLD ETF',          sigFn: signalGld,   icon: '📦', group: 3 },
+    { key: 'oil',   label: 'WTI Oil',          sigFn: signalOil,   icon: '🛢️', group: 3 },
+  ];
+
+  grid.innerHTML = cards.map(c => {
+    const d = data[c.key];
+    const sig = c.sigFn(d);
+    const chgPct = d?.data?.changePct;
+    const chgSign = chgPct >= 0 ? '+' : '';
+    const chgColor = chgPct >= 0 ? 'var(--green)' : 'var(--red)';
+    const dotColor = sig?.color === 'green' ? 'var(--green)' : sig?.color === 'red' ? 'var(--red)' : 'var(--gold)';
+    const groupBadge = `<span class="gh-sc-group g${c.group}">G${c.group}</span>`;
+
+    return `<div class="gh-sc-card gh-sc-${sig?.color || 'yellow'}">
+      <div class="gh-sc-top">
+        <span class="gh-sc-icon">${c.icon}</span>
+        ${groupBadge}
+      </div>
+      <div class="gh-sc-label">${c.label}</div>
+      <div class="gh-sc-value">${sig?.text || '–'}</div>
+      ${chgPct != null ? `<div class="gh-sc-chg" style="color:${chgColor}">${chgSign}${chgPct.toFixed(2)}% hôm nay</div>` : ''}
+      <div class="gh-sc-indicator" style="background:${dotColor}"></div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render từng chart ──
+function renderGHChart(key, indicatorData, color, unit, sigFn) {
+  const canvasId = `ghChart${key.charAt(0).toUpperCase() + key.slice(1)}`;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  // Badge
+  const sig = sigFn(indicatorData);
+  const badgeEl = document.getElementById(`ghBadge${key.charAt(0).toUpperCase() + key.slice(1)}`);
+  if (badgeEl && sig) {
+    badgeEl.textContent = sig.text;
+    badgeEl.className = `gh-chart-badge badge-sig-${sig.color}`;
+  }
+
+  // Footer: change info
+  const footerId = `ghFooter${key.charAt(0).toUpperCase() + key.slice(1)}`;
+  const footerEl = document.getElementById(footerId);
+  if (footerEl && indicatorData?.data) {
+    const d = indicatorData.data;
+    const sign = d.changePct >= 0 ? '▲' : '▼';
+    const col = d.changePct >= 0 ? 'var(--green)' : 'var(--red)';
+    const pts = d.points?.length || 0;
+    footerEl.innerHTML = `<span>📡 ${d.shortName || key}</span> <span style="color:${col}">${sign} ${Math.abs(d.changePct || 0).toFixed(2)}% hôm nay</span> <span style="color:var(--text-3)">${pts} phiên</span>`;
+  }
+
+  if (!indicatorData?.data?.points?.length) {
+    canvas.parentElement.insertAdjacentHTML('beforeend', '<div style="text-align:center;padding:20px;color:var(--text-3);font-size:12px">Không có dữ liệu</div>');
+    return;
+  }
+
+  const points = indicatorData.data.points;
+  const labels = points.map(p => {
+    const d = new Date(p.date);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  });
+  const values = points.map(p => p.close);
+
+  // Gradient fill
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 200);
+  grad.addColorStop(0, color + '40');
+  grad.addColorStop(1, color + '00');
+
+  // Destroy old chart if exists
+  if (ghCharts[key]) { ghCharts[key].destroy(); delete ghCharts[key]; }
+
+  // Tính min/max cho scale đẹp
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const pad = (maxVal - minVal) * 0.1 || 1;
+
+  ghCharts[key] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: color,
+        borderWidth: 2,
+        backgroundColor: grad,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: color,
+        pointHoverBorderColor: '#fff',
+        pointHoverBorderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1E293B',
+          borderColor: color,
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y.toFixed(key === 'tnx' || key === 'eur' ? 3 : 1)} ${unit}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: {
+            color: '#64748B', font: { size: 10 },
+            maxTicksLimit: 8,
+            maxRotation: 0
+          },
+          border: { color: 'rgba(255,255,255,.08)' }
+        },
+        y: {
+          min: minVal - pad,
+          max: maxVal + pad,
+          grid: { color: 'rgba(255,255,255,.05)' },
+          ticks: {
+            color: '#64748B', font: { size: 10 },
+            maxTicksLimit: 6,
+            callback: v => {
+              if (key === 'tnx') return v.toFixed(2) + '%';
+              if (key === 'eur') return v.toFixed(3);
+              if (key === 'gsr') return v.toFixed(1) + 'x';
+              if (Math.abs(v) >= 1000) return (v/1000).toFixed(1) + 'k';
+              return v.toFixed(1);
+            }
+          },
+          border: { color: 'rgba(255,255,255,.08)' }
+        }
+      }
+    }
+  });
+}
+
+// ── Correlation chart: Gold vs DXY vs US10Y ──
+function renderGHCorrChart(data) {
+  const canvas = document.getElementById('ghChartCorr');
+  if (!canvas) return;
+  if (ghCharts['corr']) { ghCharts['corr'].destroy(); delete ghCharts['corr']; }
+
+  const goldPts = data.gold?.data?.points || [];
+  const dxyPts  = data.dxy?.data?.points  || [];
+  const tnxPts  = data.tnx?.data?.points  || [];
+
+  if (!goldPts.length) return;
+
+  // Normalize to 100 at start for comparison
+  function normalize(pts) {
+    if (!pts.length) return [];
+    const base = pts[0].close;
+    return pts.map(p => ({ date: p.date, close: base > 0 ? (p.close / base) * 100 : 100 }));
+  }
+
+  const goldN = normalize(goldPts);
+  const dxyN  = normalize(dxyPts);
+  const tnxN  = normalize(tnxPts);
+
+  // Use gold dates as X axis
+  const labels = goldN.map(p => {
+    const d = new Date(p.date);
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  });
+
+  // Build date maps for DXY and TNX
+  const dxyMap = {}; dxyN.forEach(p => dxyMap[p.date] = p.close);
+  const tnxMap = {}; tnxN.forEach(p => tnxMap[p.date] = p.close);
+
+  const goldVals = goldN.map(p => parseFloat(p.close.toFixed(2)));
+  const dxyVals  = goldN.map(p => dxyMap[p.date] != null ? parseFloat(dxyMap[p.date].toFixed(2)) : null);
+  const tnxVals  = goldN.map(p => tnxMap[p.date] != null ? parseFloat(tnxMap[p.date].toFixed(2)) : null);
+
+  const ctx = canvas.getContext('2d');
+  ghCharts['corr'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '🥇 Vàng (GC=F)',
+          data: goldVals,
+          borderColor: '#F59E0B',
+          borderWidth: 2.5,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+        },
+        {
+          label: '💵 DXY (nghịch chiều)',
+          data: dxyVals,
+          borderColor: '#3B82F6',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          borderDash: [5, 3],
+        },
+        {
+          label: '📈 US10Y Yield',
+          data: tnxVals,
+          borderColor: '#8B5CF6',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          borderDash: [2, 4],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { color: '#94A3B8', font: { size: 11 }, boxWidth: 20, padding: 16 }
+        },
+        tooltip: {
+          backgroundColor: '#1E293B',
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(1)}%`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { color: '#64748B', font: { size: 10 }, maxTicksLimit: 10, maxRotation: 0 },
+          border: { color: 'rgba(255,255,255,.08)' }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,.05)' },
+          ticks: {
+            color: '#64748B', font: { size: 10 },
+            callback: v => v.toFixed(0) + '%'
+          },
+          border: { color: 'rgba(255,255,255,.08)' },
+          title: { display: true, text: 'Chỉ số hóa (base=100)', color: '#64748B', font: { size: 10 } }
+        }
+      }
+    }
+  });
+}
+
+// ──────────────────────────────
 // EVENTS
 // ──────────────────────────────
 function setupEventListeners() {
-  // Add button
+  // Navigation
+  document.getElementById('navMain')?.addEventListener('click', e => {
+    e.preventDefault(); navigateTo('main');
+  });
+  document.getElementById('navForecast')?.addEventListener('click', e => {
+    e.preventDefault(); navigateTo('forecast');
+  });
+  document.getElementById('navGoldHealth')?.addEventListener('click', e => {
+    e.preventDefault(); navigateTo('gold-health');
+  });
+
+  // Gold Health refresh button
+  document.getElementById('ghRefreshBtn')?.addEventListener('click', () => {
+    ghDataCache = null;
+    loadGoldHealth(true);
+  });
   document.getElementById('addBtn').addEventListener('click', openAddModal);
 
   // Refresh
@@ -753,6 +1652,9 @@ function setupEventListeners() {
   const goldPriceInput = document.getElementById('goldPriceInput');
   if (goldPriceBtn) goldPriceBtn.addEventListener('click', saveGoldPrice);
   if (goldPriceInput) goldPriceInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveGoldPrice(); });
+
+  // Forecast button
+  document.getElementById('runForecastBtn')?.addEventListener('click', runForecast);
 
   // Auto refresh mỗi 2 phút
   setInterval(refreshPrices, 120000);

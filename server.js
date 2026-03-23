@@ -444,6 +444,373 @@ app.post('/api/prices/batch', async (req, res) => {
 });
 
 // ────────────────────────────────────────────────
+// Gold Health – lấy dữ liệu lịch sử các chỉ số
+// ────────────────────────────────────────────────
+const goldHealthCache = {};
+const GH_CACHE_TTL = 10 * 60 * 1000; // 10 phút
+
+function httpsGetRaw(url) {
+  return new Promise((resolve, reject) => {
+    const opts = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json,text/plain,*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'identity',
+        'Referer': 'https://finance.yahoo.com/',
+        'Origin': 'https://finance.yahoo.com',
+        'sec-ch-ua': '"Chromium";v="124"',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site'
+      },
+      timeout: 15000
+    };
+    const req = https.get(url, opts, (res) => {
+      let body = '';
+      res.on('data', d => body += d);
+      res.on('end', () => resolve({ statusCode: res.statusCode, data: body }));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+async function fetchYahooHistory(symbol, range = '90d') {
+  const enc = encodeURIComponent(symbol);
+  for (const host of ['query2', 'query1']) {
+    try {
+      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${enc}?interval=1d&range=${range}&includePrePost=false&events=div%2Csplit`;
+      const res = await httpsGetRaw(url);
+      if (res.statusCode === 429 || res.data.startsWith('Too Many')) {
+        console.warn(`[GH] ${symbol} ${host}: 429 Too Many Requests`);
+        continue;
+      }
+      if (res.statusCode !== 200) {
+        console.warn(`[GH] ${symbol} ${host}: HTTP ${res.statusCode}`);
+        continue;
+      }
+      let json;
+      try { json = JSON.parse(res.data); } catch(pe) {
+        console.warn(`[GH] ${symbol} ${host}: JSON parse error`);
+        continue;
+      }
+      const result = json?.chart?.result?.[0];
+      if (!result) { console.warn(`[GH] ${symbol} ${host}: no result`); continue; }
+      const timestamps = result.timestamp || [];
+      const closes    = result.indicators?.quote?.[0]?.close || [];
+      const volumes   = result.indicators?.quote?.[0]?.volume || [];
+      const meta      = result.meta || {};
+      const points = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        if (closes[i] != null) {
+          points.push({
+            date: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+            close: closes[i],
+            volume: volumes[i] || 0
+          });
+        }
+      }
+      // Tính % ngày: dùng điểm lịch sử cuối cùng của ngày KHÁC ngày hôm nay
+      // (Yahoo hay trùng điểm cuối — cần lọc theo date)
+      const currentPrice = meta.regularMarketPrice || closes.filter(Boolean).slice(-1)[0] || 0;
+      const lastDate = points.length ? points[points.length - 1].date : null;
+      // Tìm điểm cuối cùng có ngày khác lastDate
+      let prevDayClose = 0;
+      for (let i = points.length - 2; i >= 0; i--) {
+        if (points[i].date !== lastDate && points[i].close) {
+          prevDayClose = points[i].close;
+          break;
+        }
+      }
+      // Fallback: regularMarketPreviousClose nếu có
+      if (!prevDayClose && meta.regularMarketPreviousClose) prevDayClose = meta.regularMarketPreviousClose;
+      const dayChange    = currentPrice && prevDayClose ? currentPrice - prevDayClose : 0;
+      const dayChangePct = currentPrice && prevDayClose ? (dayChange / prevDayClose) * 100 : 0;
+      console.log(`[GH] ✅ ${symbol} via ${host}: ${points.length} pts, price=${currentPrice}, prev=${prevDayClose?.toFixed(4)}, chg=${dayChangePct.toFixed(3)}%`);
+      return {
+        symbol,
+        price: currentPrice,
+        prevClose: prevDayClose,
+        change: dayChange,
+        changePct: dayChangePct,
+        points,
+        currency: meta.currency || '',
+        shortName: meta.shortName || symbol,
+        exchangeName: meta.exchangeName || ''
+      };
+    } catch (e) {
+      console.warn(`[GH] ${symbol} ${host}: ${e.message}`);
+    }
+  }
+  throw new Error(`Cannot fetch ${symbol}`);
+}
+
+app.get('/api/gold-health', async (req, res) => {
+  const cacheKey = 'gold-health';
+  if (goldHealthCache[cacheKey] && (Date.now() - goldHealthCache[cacheKey].ts) < GH_CACHE_TTL) {
+    console.log('[GH] Trả từ cache');
+    return res.json(goldHealthCache[cacheKey].data);
+  }
+
+  const INDICATORS = [
+    { key: 'gold',  symbol: 'GC=F',      label: 'Vàng (GC=F)',       group: 1 },
+    { key: 'dxy',   symbol: 'DX-Y.NYB',  label: 'DXY Dollar Index',  group: 1 },
+    { key: 'tnx',   symbol: '^TNX',       label: 'US 10Y Yield',      group: 1 },
+    { key: 'eur',   symbol: 'EURUSD=X',   label: 'EUR/USD',           group: 1 },
+    { key: 'vix',   symbol: '^VIX',       label: 'VIX Fear Index',    group: 2 },
+    { key: 'si',    symbol: 'SI=F',       label: 'Bạc (SI=F)',        group: 2 },
+    { key: 'gld',   symbol: 'GLD',        label: 'GLD ETF',           group: 3 },
+    { key: 'oil',   symbol: 'CL=F',       label: 'WTI Crude Oil',     group: 3 },
+  ];
+
+  try {
+    const payload = {};
+    for (const ind of INDICATORS) {
+      try {
+        const d = await fetchYahooHistory(ind.symbol, '90d');
+        const { key, ...rest } = ind;
+        payload[key] = { ...rest, data: d };
+      } catch (e) {
+        console.warn(`[GH] Bỏ qua ${ind.symbol}: ${e.message}`);
+      }
+      // Delay 600ms giữa các request để tránh rate-limit Yahoo
+      await new Promise(r => setTimeout(r, 600));
+    }
+
+    // Tính Gold/Silver Ratio từ GC và SI
+    if (payload.gold?.data?.points?.length && payload.si?.data?.points?.length) {
+      const gcPoints = payload.gold.data.points;
+      const siPoints = payload.si.data.points;
+      // Ghép theo ngày gần nhất
+      const siMap = {};
+      for (const p of siPoints) siMap[p.date] = p.close;
+      const gsrPoints = gcPoints
+        .filter(p => siMap[p.date] && siMap[p.date] > 0)
+        .map(p => ({ date: p.date, close: parseFloat((p.close / siMap[p.date]).toFixed(2)), volume: 0 }));
+      const gsrLast = gsrPoints[gsrPoints.length - 1]?.close || 0;
+      const gsrPrev = gsrPoints[gsrPoints.length - 2]?.close || 0;
+      payload.gsr = {
+        key: 'gsr', symbol: 'GSR', label: 'Gold/Silver Ratio', group: 2,
+        data: {
+          symbol: 'GSR', price: gsrLast, prevClose: gsrPrev,
+          change: gsrLast - gsrPrev,
+          changePct: gsrPrev ? ((gsrLast - gsrPrev) / gsrPrev) * 100 : 0,
+          points: gsrPoints, currency: 'ratio', shortName: 'Gold/Silver Ratio'
+        }
+      };
+    }
+
+    if (Object.keys(payload).length > 0) {
+      goldHealthCache[cacheKey] = { ts: Date.now(), data: payload };
+    }
+    res.json(payload);
+    console.log('[GH] ✅ Đã lấy dữ liệu sức khỏe vàng:', Object.keys(payload).join(', '));
+  } catch (e) {
+    console.error('[GH] ❌', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ────────────────────────────────────────────────
+// Gemini AI – Dự báo danh mục
+// ────────────────────────────────────────────────
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
+app.post('/api/forecast', async (req, res) => {
+  try {
+    const { investments, currentPrices, targetMonth, targetYear, model } = req.body;
+
+    if (!GEMINI_API_KEY) {
+      return res.status(400).json({
+        error: 'GEMINI_API_KEY chưa được cấu hình. Vui lòng thêm GEMINI_API_KEY=your_key vào file .env rồi khởi động lại server. Lấy key miễn phí tại https://aistudio.google.com/app/apikey'
+      });
+    }
+    if (!investments?.length) {
+      return res.status(400).json({ error: 'Danh mục trống, không có gì để dự báo.' });
+    }
+
+    const now = new Date();
+    const curMonth = now.getMonth() + 1;
+    const curYear  = now.getFullYear();
+    const monthsAhead = (targetYear - curYear) * 12 + (targetMonth - curMonth);
+
+    if (monthsAhead <= 0) {
+      return res.status(400).json({ error: 'Vui lòng chọn tháng trong tương lai.' });
+    }
+
+    const monthNamesVN = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                          'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+    const targetMonthName = `${monthNamesVN[targetMonth - 1]} năm ${targetYear}`;
+
+    const typeMap = { stock: 'Cổ phiếu HOSE/VN', gold: 'Vàng (SJC)', crypto: 'Tiền điện tử', other: 'Tài sản khác' };
+
+    const portfolioLines = investments.map(inv => {
+      const cp = currentPrices?.[inv.id];
+      const currentPrice = cp?.price || null;
+      const costValue = inv.quantity * inv.purchasePrice;
+      let lines = [`• ID="${inv.id}" | ${inv.symbol} | ${inv.name || ''} | ${typeMap[inv.type] || inv.type}`];
+      lines.push(`  Số lượng: ${inv.quantity}`);
+      lines.push(`  Giá mua vào: ${inv.purchasePrice.toLocaleString('vi-VN')}₫`);
+      lines.push(`  Tổng vốn đầu tư: ${costValue.toLocaleString('vi-VN')}₫`);
+      if (currentPrice) {
+        const pnlPct = ((currentPrice - inv.purchasePrice) / inv.purchasePrice * 100).toFixed(2);
+        lines.push(`  Giá hiện tại (${curMonth}/${curYear}): ${currentPrice.toLocaleString('vi-VN')}₫ (${pnlPct >= 0 ? '+' : ''}${pnlPct}%)`);
+        lines.push(`  Giá trị hiện tại: ${(inv.quantity * currentPrice).toLocaleString('vi-VN')}₫`);
+      } else {
+        lines.push(`  Giá hiện tại: Chưa có (dùng giá mua để tham chiếu)`);
+      }
+      if (inv.purchaseDate) lines.push(`  Ngày mua: ${inv.purchaseDate}`);
+      return lines.join('\n');
+    }).join('\n\n');
+
+    const prompt = `Bạn là chuyên gia phân tích tài chính đầu tư hàng đầu Việt Nam với 20+ năm kinh nghiệm. Bạn am hiểu sâu về thị trường chứng khoán HOSE/HNX, vàng SJC, tiền điện tử và các tài sản tài chính tại Việt Nam.
+
+NHIỆM VỤ: Dự báo giá các khoản đầu tư trong danh mục vào ${targetMonthName} (khoảng ${monthsAhead} tháng kể từ ${curMonth}/${curYear}).
+
+DANH MỤC HIỆN TẠI (${curMonth}/${curYear}):
+${portfolioLines}
+
+HƯỚNG DẪN PHÂN TÍCH:
+- Cổ phiếu VN: phân tích ngành, tăng trưởng doanh nghiệp, chính sách tiền tệ NHNN, xu hướng HOSE/VNIndex
+- Vàng SJC: giá vàng thế giới XAU/USD, USD/VND, chênh lệch SJC vs thế giới, nhu cầu trong nước
+- Crypto: chu kỳ thị trường Bitcoin, các sự kiện halving, tâm lý nhà đầu tư toàn cầu
+- Yếu tố vĩ mô: lạm phát, lãi suất FED và NHNN, địa chính trị, kinh tế Việt Nam
+
+ĐỊNH DẠNG PHẢN HỒI (CHỈ JSON THUẦN TÚY — KHÔNG CÓ MARKDOWN, KHÔNG CÓ CODE BLOCK):
+{
+  "forecastMonth": ${targetMonth},
+  "forecastYear": ${targetYear},
+  "marketOutlook": "Nhận định tổng quan thị trường giai đoạn ${targetMonthName} — 2-3 câu bằng tiếng Việt",
+  "items": [
+    {
+      "id": "EXACT_ID_CUA_KHOAN_DAU_TU",
+      "symbol": "MA_CO_PHIEU",
+      "forecastPrice": GIA_DU_BAO_SO_NGUYEN_VND,
+      "trend": "tăng|giảm|đi ngang",
+      "changePercent": SO_THUC_PHAN_TRAM_SO_VOI_GIA_HIEN_TAI,
+      "confidence": "cao|trung bình|thấp",
+      "reasoning": "Phân tích ngắn gọn 1-2 câu bằng tiếng Việt",
+      "upside": GIA_KICH_BAN_TOT_SO_NGUYEN_VND,
+      "downside": GIA_KICH_BAN_XAU_SO_NGUYEN_VND
+    }
+  ],
+  "risks": "Các rủi ro chính cần theo dõi — 1-2 câu bằng tiếng Việt",
+  "disclaimer": "Dự báo chỉ mang tính tham khảo, không phải lời khuyên đầu tư chuyên nghiệp."
+}
+
+QUY TẮC BẮT BUỘC:
+- Chỉ trả về JSON thuần túy, không có bất kỳ text nào bên ngoài JSON
+- "id" trong items phải khớp CHÍNH XÁC với ID từ danh mục (ký tự giống hệt)
+- forecastPrice, upside, downside: số nguyên dương (VND, không có dấu phẩy hay ký tự)
+- changePercent: số thực (ví dụ: 15.5 cho +15.5%, -8.3 cho -8.3%)
+- Tất cả ${investments.length} khoản đầu tư phải xuất hiện trong mảng "items"`;
+
+    const geminiModel = model || 'gemini-2.5-pro';
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${GEMINI_API_KEY}`;
+
+    const reqBody = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json'
+      }
+    };
+
+    console.log(`[FORECAST] ⏳ Gọi ${geminiModel} → dự báo ${targetMonthName}...`);
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 120000); // 2 phút timeout
+    let geminiRes;
+    try {
+      geminiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqBody),
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      let errMsg = `Gemini API lỗi ${geminiRes.status}`;
+      try {
+        const errJson = JSON.parse(errText);
+        errMsg += `: ${errJson.error?.message || errText}`;
+      } catch { errMsg += `: ${errText.substring(0, 300)}`; }
+      throw new Error(errMsg);
+    }
+
+    const geminiData = await geminiRes.json();
+    const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (!rawText) {
+      const reason = geminiData.candidates?.[0]?.finishReason || 'unknown';
+      throw new Error(`Gemini không trả về nội dung. Lý do: ${reason}`);
+    }
+
+    let forecastData;
+    try {
+      const clean = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+      forecastData = JSON.parse(clean);
+    } catch {
+      const m = rawText.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error(`Không parse được JSON từ Gemini. Response: ${rawText.substring(0, 300)}`);
+      forecastData = JSON.parse(m[0]);
+    }
+
+    // Enrich items với đầy đủ thông tin từ portfolio
+    if (Array.isArray(forecastData.items)) {
+      forecastData.items = forecastData.items.map(item => {
+        const inv = investments.find(i => i.id === item.id) || investments.find(i => i.symbol === item.symbol);
+        if (inv) {
+          const cp = currentPrices?.[inv.id];
+          return {
+            ...item,
+            id: inv.id,
+            symbol: inv.symbol,
+            name: inv.name || '',
+            type: inv.type,
+            quantity: inv.quantity,
+            purchasePrice: inv.purchasePrice,
+            currentPrice: cp?.price || null,
+          };
+        }
+        return item;
+      });
+      // Thêm các khoản bị thiếu
+      for (const inv of investments) {
+        if (!forecastData.items.find(i => i.id === inv.id)) {
+          const cp = currentPrices?.[inv.id];
+          const ref = cp?.price || inv.purchasePrice;
+          forecastData.items.push({
+            id: inv.id, symbol: inv.symbol, name: inv.name || '', type: inv.type,
+            quantity: inv.quantity, purchasePrice: inv.purchasePrice,
+            currentPrice: cp?.price || null, forecastPrice: ref,
+            trend: 'đi ngang', changePercent: 0, confidence: 'thấp',
+            reasoning: 'Không đủ dữ liệu để dự báo chính xác.',
+            upside: ref, downside: ref
+          });
+        }
+      }
+    }
+
+    console.log(`[FORECAST] ✅ Hoàn thành — ${forecastData.items?.length || 0} khoản đầu tư`);
+    res.json(forecastData);
+
+  } catch (err) {
+    console.error('[FORECAST] ❌', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n╔════════════════════════════════════════╗`);
   console.log(`║  💼 Portfolio Tracker đang chạy        ║`);

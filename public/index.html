@@ -26,11 +26,17 @@
 
       <nav class="sidebar-nav">
         <div class="nav-section-label">MENU</div>
-        <a class="nav-link active" href="#">
+        <a class="nav-link active" href="#" id="navMain">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg><span>Tổng quan</span>
         </a>
         <a class="nav-link" href="#investments-section">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span>Danh mục</span>
+        </a>
+        <a class="nav-link" href="#" id="navForecast">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Dự báo AI</span>
+        </a>
+        <a class="nav-link" href="#" id="navGoldHealth">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="10" rx="2"/><path d="M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg><span>Sức khỏe Vàng</span>
         </a>
         <button class="nav-link refresh-link" id="mobileRefreshBtn">
           <svg id="mobileRefIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>Cập nhật</span>
@@ -64,6 +70,7 @@
       </header>
 
       <!-- Summary Cards -->
+      <div id="page-main">
       <section class="summary-grid">
         <div class="card summary-card" id="card-total">
           <div class="summary-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V22H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M22 12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v0a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2z"/></svg></div>
@@ -157,6 +164,334 @@
           <p>Chưa có đầu tư nào. <button class="link-btn" onclick="openAddModal()">Thêm ngay</button></p>
         </div>
       </section>
+      </div><!-- /#page-main -->
+
+      <!-- ══════════════ FORECAST PAGE ══════════════ -->
+      <div id="page-forecast" style="display:none">
+
+        <!-- Controls Card -->
+        <div class="card fc-controls-card">
+          <div class="fc-header">
+            <div class="fc-header-icon">🔮</div>
+            <div>
+              <h2 class="fc-title">Dự báo Danh Mục bằng Gemini AI</h2>
+              <p class="fc-subtitle">Chọn tháng tương lai — AI sẽ phân tích và dự báo giá từng khoản đầu tư của bạn</p>
+            </div>
+          </div>
+          <div class="fc-form-row">
+            <div class="fc-form-field">
+              <label class="form-label">Tháng dự báo</label>
+              <select id="forecastMonthSel" class="form-input fc-select"></select>
+            </div>
+            <div class="fc-form-field">
+              <label class="form-label">Model Gemini AI</label>
+              <select id="forecastModelSel" class="form-input fc-select">
+                <option value="gemini-2.5-pro">✨ Gemini 2.5 Pro (Tốt nhất)</option>
+                <option value="gemini-2.5-pro-preview-06-05">✨ Gemini 2.5 Pro Preview</option>
+                <option value="gemini-2.5-flash-preview-05-20">⚡ Gemini 2.5 Flash (Nhanh)</option>
+                <option value="gemini-2.0-flash">🚀 Gemini 2.0 Flash</option>
+                <option value="gemini-1.5-pro">🔷 Gemini 1.5 Pro</option>
+              </select>
+            </div>
+            <button class="btn btn-primary fc-run-btn" id="runForecastBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span>Dự báo ngay</span>
+            </button>
+          </div>
+          <div id="fcApiNotice" class="fc-api-notice" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>Cần thêm <code>GEMINI_API_KEY=your_key</code> vào file <code>.env</code> rồi khởi động lại server. Lấy key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio →</a></span>
+          </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="forecastLoading" class="card fc-loading-card" style="display:none">
+          <div class="fc-loading-dots">
+            <div class="fc-dot"></div>
+            <div class="fc-dot"></div>
+            <div class="fc-dot"></div>
+          </div>
+          <div class="fc-loading-text">
+            <strong>Gemini AI đang phân tích danh mục của bạn...</strong>
+            <p id="forecastLoadingMsg">Đang xem xét xu hướng thị trường và dự báo giá từng khoản đầu tư...</p>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="forecastResult" style="display:none">
+
+          <!-- Target month banner -->
+          <div class="fc-month-banner">
+            <div class="fc-banner-left">
+              <span class="fc-banner-label">📅 Dự báo cho</span>
+              <span class="fc-banner-month" id="fmbMonth">—</span>
+            </div>
+            <span class="fc-banner-model" id="fmbModel">—</span>
+          </div>
+
+          <!-- Summary Cards -->
+          <section class="summary-grid">
+            <div class="card summary-card">
+              <div class="summary-icon icon-purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div class="summary-body">
+                <p class="summary-label">Giá trị dự báo</p>
+                <p class="summary-value" id="fcTotalValue">–</p>
+              </div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-icon icon-indigo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
+              </div>
+              <div class="summary-body">
+                <p class="summary-label">Tổng vốn đầu tư</p>
+                <p class="summary-value" id="fcTotalCost">–</p>
+              </div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-icon" id="fcPnLIcon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+              </div>
+              <div class="summary-body">
+                <p class="summary-label">Lời / Lỗ dự báo</p>
+                <p class="summary-value" id="fcTotalPnL">–</p>
+              </div>
+            </div>
+            <div class="card summary-card">
+              <div class="summary-icon icon-gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
+              </div>
+              <div class="summary-body">
+                <p class="summary-label">% Thay đổi vs hiện tại</p>
+                <p class="summary-value" id="fcChangeVsCurrent">–</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Market Outlook -->
+          <div class="card fc-outlook-card">
+            <h3 class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              Nhận định thị trường của AI
+            </h3>
+            <p id="fcMarketOutlook" class="fc-outlook-text">–</p>
+            <div class="fc-risks-wrap" id="fcRisksWrap" style="display:none">
+              <h4 class="fc-risks-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Rủi ro cần theo dõi
+              </h4>
+              <p id="fcRisks" class="fc-risks-text">–</p>
+            </div>
+          </div>
+
+          <!-- Forecast Table -->
+          <div class="card fc-table-card">
+            <h3 class="card-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Bảng dự báo chi tiết
+            </h3>
+            <div class="fc-table-wrap">
+              <table class="fc-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Khoản đầu tư</th>
+                    <th>Loại</th>
+                    <th class="num">Số lượng</th>
+                    <th class="num">Giá mua</th>
+                    <th class="num">Giá hiện tại</th>
+                    <th class="num fc-col-highlight">Giá dự báo</th>
+                    <th class="num">Thay đổi</th>
+                    <th class="num">Giá trị dự báo</th>
+                    <th class="num">Lời/Lỗ dự báo</th>
+                    <th>Xu hướng</th>
+                    <th>Độ tin cậy</th>
+                    <th>Phân tích AI</th>
+                  </tr>
+                </thead>
+                <tbody id="fcTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Mobile forecast cards -->
+          <div id="fcMobileCards" class="fc-mobile-cards"></div>
+
+          <!-- Disclaimer -->
+          <div class="fc-disclaimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="fcDisclaimer">Dự báo chỉ mang tính tham khảo, không phải lời khuyên đầu tư chuyên nghiệp.</span>
+          </div>
+
+        </div><!-- /#forecastResult -->
+      </div><!-- /#page-forecast -->
+
+      <!-- ══════════════ GOLD HEALTH PAGE ══════════════ -->
+      <div id="page-gold-health" style="display:none">
+
+        <!-- Header -->
+        <div class="card gh-header-card">
+          <div class="gh-header-inner">
+            <div>
+              <h2 class="fc-title">🏅 Sức khỏe Thị trường Vàng</h2>
+              <p class="fc-subtitle">Các chỉ số vĩ mô & kỹ thuật quan trọng nhất — dữ liệu thời gian thực từ thị trường toàn cầu</p>
+            </div>
+            <button class="btn btn-primary gh-refresh-btn" id="ghRefreshBtn">
+              <svg id="ghRefreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Cập nhật
+            </button>
+          </div>
+          <div class="gh-last-updated">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="ghLastUpdated">Chưa tải dữ liệu</span>
+          </div>
+        </div>
+
+        <!-- Gauge Scorecard -->
+        <div class="gh-scorecard-label">📊 Tổng quan chỉ số sức khỏe</div>
+        <div class="gh-scorecard-grid" id="ghScorecardGrid">
+          <!-- filled by JS -->
+        </div>
+
+        <!-- ── Outlook / Nhận định ── -->
+        <div class="card gh-outlook-card" id="ghOutlookCard">
+          <!-- filled by JS -->
+        </div>
+
+        <!-- ── GROUP 1: Vĩ mô toàn cầu ── -->
+        <div class="gh-group-label">
+          <span class="gh-group-dot g1"></span>
+          Nhóm 1 — Vĩ mô Toàn cầu
+        </div>
+        <div class="charts-grid gh-charts-row">
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">🥇 Giá Vàng Thế giới (GC=F)</span>
+              <span class="gh-chart-badge badge-g1" id="ghBadgeGold">—</span>
+            </div>
+            <canvas id="ghChartGold" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterGold">—</div>
+          </div>
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">💵 USD Index (DXY)</span>
+              <span class="gh-chart-badge badge-g1" id="ghBadgeDxy">—</span>
+            </div>
+            <canvas id="ghChartDxy" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterDxy">—</div>
+          </div>
+        </div>
+        <div class="charts-grid gh-charts-row">
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">📈 Lợi suất TPCP Mỹ 10 năm (US10Y)</span>
+              <span class="gh-chart-badge badge-g1" id="ghBadgeTnx">—</span>
+            </div>
+            <canvas id="ghChartTnx" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterTnx">—</div>
+          </div>
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">🌐 EUR/USD (Proxy lạm phát USD)</span>
+              <span class="gh-chart-badge badge-g1" id="ghBadgeEur">—</span>
+            </div>
+            <canvas id="ghChartEur" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterEur">—</div>
+          </div>
+        </div>
+
+        <!-- ── GROUP 2: Tâm lý & Rủi ro ── -->
+        <div class="gh-group-label">
+          <span class="gh-group-dot g2"></span>
+          Nhóm 2 — Tâm lý &amp; Rủi ro Thị trường
+        </div>
+        <div class="charts-grid gh-charts-row">
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">😱 VIX — Fear Index</span>
+              <span class="gh-chart-badge badge-g2" id="ghBadgeVix">—</span>
+            </div>
+            <canvas id="ghChartVix" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterVix">—</div>
+          </div>
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">⚖️ Gold/Silver Ratio</span>
+              <span class="gh-chart-badge badge-g2" id="ghBadgeGsr">—</span>
+            </div>
+            <canvas id="ghChartGsr" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterGsr">—</div>
+          </div>
+        </div>
+
+        <!-- ── GROUP 3: Cung cầu & ETF ── -->
+        <div class="gh-group-label">
+          <span class="gh-group-dot g3"></span>
+          Nhóm 3 — Cung cầu &amp; ETF
+        </div>
+        <div class="charts-grid gh-charts-row">
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">📦 GLD ETF — Dòng tiền &amp; Giá</span>
+              <span class="gh-chart-badge badge-g3" id="ghBadgeGld">—</span>
+            </div>
+            <canvas id="ghChartGld" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterGld">—</div>
+          </div>
+          <div class="card chart-card gh-chart-card">
+            <div class="gh-chart-header">
+              <span class="gh-chart-title">🛢️ Dầu thô WTI (lạm phát proxy)</span>
+              <span class="gh-chart-badge badge-g3" id="ghBadgeOil">—</span>
+            </div>
+            <canvas id="ghChartOil" height="160"></canvas>
+            <div class="gh-chart-footer" id="ghFooterOil">—</div>
+          </div>
+        </div>
+
+        <!-- ── Gold vs Indicators Correlation chart ── -->
+        <div class="card gh-chart-card gh-corr-card">
+          <div class="gh-chart-header">
+            <span class="gh-chart-title">🔗 Tương quan: Vàng vs DXY vs US10Y (90 ngày)</span>
+          </div>
+          <canvas id="ghChartCorr" height="180"></canvas>
+        </div>
+
+        <!-- Interpretation guide -->
+        <div class="card gh-guide-card">
+          <h3 class="card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Hướng dẫn đọc chỉ số
+          </h3>
+          <div class="gh-guide-grid">
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">💵</span>
+              <div><strong>DXY tăng</strong> → Vàng thường <span class="red">giảm</span> (nghịch chiều ~85%)</div>
+            </div>
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">📈</span>
+              <div><strong>US10Y tăng</strong> → Chi phí cơ hội giữ vàng tăng → <span class="red">Vàng giảm</span></div>
+            </div>
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">😱</span>
+              <div><strong>VIX &gt; 30</strong> → Thị trường hoảng loạn → Vàng là <span class="green">tài sản trú ẩn</span></div>
+            </div>
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">⚖️</span>
+              <div><strong>Gold/Silver Ratio &gt; 80</strong> → Vàng đắt tương đối, <span class="yellow">thường điều chỉnh</span></div>
+            </div>
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">📦</span>
+              <div><strong>GLD ETF volume tăng</strong> → Dòng tiền tổ chức vào vàng → <span class="green">Hỗ trợ giá</span></div>
+            </div>
+            <div class="gh-guide-item">
+              <span class="gh-guide-icon">🛢️</span>
+              <div><strong>Dầu tăng mạnh</strong> → Kỳ vọng lạm phát tăng → <span class="green">Vàng tăng</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /#page-gold-health -->
 
     </main>
   </div><!-- .app-layout -->
