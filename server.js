@@ -253,13 +253,13 @@ async function fetchGoldEODHD() {
   if (!usdVnd) throw new Error('Invalid USD/VND rate');
 
   // 1 cây VN = 37.5g ; 1 troy oz = 31.1034768g
-  // Giá thế giới / cây (VND) + flat 20 triệu = giá SJC
-  const SJC_FLAT_PREMIUM = 20_000_000;
+  // Giá vàng VN = giá thế giới quy ra lượng + 33 triệu
+  const SJC_FLAT_PREMIUM = 33_000_000;
   const xauVnd = xauUsd * usdVnd;
   const priceWorldPerLuong = xauVnd * (37.5 / 31.1034768);
   const finalPrice = Math.round((priceWorldPerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
 
-  console.log(`[GOLD-EODHD] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây TG: ${Math.round(priceWorldPerLuong).toLocaleString()} + 20tr = SJC: ${finalPrice.toLocaleString()}`);
+  console.log(`[GOLD-EODHD] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây TG: ${Math.round(priceWorldPerLuong).toLocaleString()} + 33tr = SJC: ${finalPrice.toLocaleString()}`);
   return {
     symbol: 'SJC',
     buyPrice: finalPrice - 2000000,
@@ -285,12 +285,12 @@ async function fetchGoldFromCurrencyAPI() {
   const xauVnd = json?.xau?.vnd;
   if (!xauVnd || xauVnd < 1000000) throw new Error('Invalid XAU/VND rate');
   // 1 troy oz = 31.1035g ; 1 lượng vàng VN = 37.5g
-  // Giá thế giới theo cây (VND) + flat 20 triệu = giá SJC
-  const SJC_FLAT_PREMIUM = 20_000_000;
+  // Giá vàng VN = giá thế giới quy ra lượng + 33 triệu
+  const SJC_FLAT_PREMIUM = 33_000_000;
   const pricePerLuong = xauVnd * (37.5 / 31.1035);
   const sellPrice = Math.round((pricePerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
   const buyPrice  = sellPrice - 500000;
-  console.log(`[GOLD] XAU/VND=${xauVnd.toLocaleString()} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
+  console.log(`[GOLD] XAU/VND=${xauVnd.toLocaleString()} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 33tr = SJC: ${sellPrice.toLocaleString()}`);
   return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), source: 'XAU/VND (World)', lastUpdated: new Date().toISOString() };
 }
 
@@ -310,13 +310,13 @@ async function fetchGoldFromYahooXAU() {
   const usdVnd  = usdJson?.usd?.vnd;
   if (!xauUsd || !usdVnd) throw new Error('No data');
   // xauUsd = USD/troy oz; usdVnd = VND per USD
-  // Giá thế giới theo cây (VND) + flat 20 triệu = giá SJC
-  const SJC_FLAT_PREMIUM = 20_000_000;
+  // Giá vàng VN = giá thế giới quy ra lượng + 33 triệu
+  const SJC_FLAT_PREMIUM = 33_000_000;
   const xauVnd = xauUsd * usdVnd;
   const pricePerLuong = xauVnd * (37.5 / 31.1035);
   const sellPrice = Math.round((pricePerLuong + SJC_FLAT_PREMIUM) / 100000) * 100000;
   const buyPrice  = sellPrice - 500000;
-  console.log(`[GOLD-Yahoo] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 20tr = SJC: ${sellPrice.toLocaleString()}`);
+  console.log(`[GOLD-Yahoo] XAUUSD=$${xauUsd} × ${usdVnd} → 1 cây: ${Math.round(pricePerLuong).toLocaleString()} + 33tr = SJC: ${sellPrice.toLocaleString()}`);
   return { symbol: 'SJC', buyPrice, sellPrice, price: sellPrice, priceWorld: Math.round(pricePerLuong), xauUsd, usdVnd, source: `Yahoo XAUUSD $${xauUsd.toFixed(0)}`, lastUpdated: new Date().toISOString() };
 }
 
@@ -416,7 +416,7 @@ app.post('/api/prices/batch', async (req, res) => {
 
   const results = {};
   const uniqueStocks = [...new Set(items.filter(i => i.type === 'stock').map(i => i.symbol))];
-  const hasGold = items.some(i => i.type === 'gold' && i.symbol === 'SJC');
+  const hasGold = items.some(i => i.type === 'gold');
 
   // Fetch song song để nhanh hơn
   const fetchPromises = uniqueStocks.map(sym =>

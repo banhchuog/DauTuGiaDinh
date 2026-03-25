@@ -89,6 +89,12 @@ function updateGoldPriceRow() {
     const input = document.getElementById('goldPriceInput');
     if (input) input.value = portfolio.goldPrice;
   }
+  // Hiển badge tự động nếu có khoản vàng đã lấy giá tự động
+  const hasAutoGold = portfolio.investments.some(inv =>
+    inv.type === 'gold' && priceCache[inv.id]?.source && priceCache[inv.id].source !== 'Nhập thủ công'
+  );
+  const badge = document.getElementById('goldPriceSource');
+  if (badge) badge.style.display = hasAutoGold ? 'inline-flex' : 'none';
 }
 
 async function saveGoldPrice() {
@@ -119,9 +125,8 @@ async function refreshPrices() {
   showToast('Đang cập nhật giá thị trường...', 'info');
 
   try {
-    // Vàng nhập thủ công – không gửi lên API
+    // Gửi tất cả khoản đầu tư lên API (kể cả vàng – server tự tính)
     const items = portfolio.investments
-      .filter(inv => inv.type !== 'gold')
       .map(inv => ({ id: inv.id, type: inv.type, symbol: inv.symbol }));
 
     let priceMap = {};
@@ -135,16 +140,28 @@ async function refreshPrices() {
     }
 
     let updated = 0;
+    let goldAutoFetched = false;
     for (const [id, priceData] of Object.entries(priceMap)) {
       if (priceData && priceData.price > 0) {
         priceCache[id] = priceData;
         updated++;
+        // Nếu vàng tự động lấy được, cập nhật goldPrice để hiển thị đúng
+        const inv = portfolio.investments.find(i => i.id === id);
+        if (inv?.type === 'gold') {
+          portfolio.goldPrice = priceData.price;
+          goldAutoFetched = true;
+          // Cập nhật input hiển thị
+          const inp = document.getElementById('goldPriceInput');
+          if (inp) inp.value = priceData.price;
+        }
       }
     }
 
-    // Áp giá vàng thủ công vào priceCache
-    injectManualGoldPrices();
-    updated += portfolio.investments.filter(inv => inv.type === 'gold' && portfolio.goldPrice > 0).length;
+    // Fallback: vàng thủ công nếu API không lấy được
+    if (!goldAutoFetched) {
+      injectManualGoldPrices();
+      updated += portfolio.investments.filter(inv => inv.type === 'gold' && portfolio.goldPrice > 0).length;
+    }
 
     document.getElementById('lastUpdated').textContent =
       new Date().toLocaleTimeString('vi-VN');

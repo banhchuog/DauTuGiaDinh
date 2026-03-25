@@ -137,17 +137,18 @@
           </div>
         </div>
 
-        <!-- Giá vàng nhập thủ công -->
+        <!-- Giá vàng (tự động hoặc thủ công) -->
         <div class="gold-price-row" id="goldPriceRow" style="display:none">
           <div class="gold-price-label">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="10" rx="2"/><path d="M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
-            Giá vàng (VND/lượng)
+            Giá vàng VN (VND/lượng)
+            <span id="goldPriceSource" class="gold-auto-badge" style="display:none">⚡ Tự động</span>
           </div>
           <div class="gold-price-controls">
-            <input type="number" id="goldPriceInput" class="form-input gold-price-input" placeholder="VD: 190900000" min="0" step="100000">
+            <input type="number" id="goldPriceInput" class="form-input gold-price-input" placeholder="Đang tải tự động..." min="0" step="100000">
             <button class="btn btn-gold" id="goldPriceBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Lưu giá
+              Ghi đè
             </button>
           </div>
         </div>
