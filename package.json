@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Theo dõi danh mục đầu tư cá nhân - Cổ phiếu & Vàng Việt Nam",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"

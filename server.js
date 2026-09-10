@@ -10,6 +10,12 @@ const { Pool } = require('pg');
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
+
+// Railway dùng endpoint này để xác nhận tiến trình Node đã sẵn sàng nhận request.
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ────────────────────────────────────────────────
